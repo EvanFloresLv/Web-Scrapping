@@ -19,6 +19,7 @@ dependencies = [
     "asgi-correlation-id>=4.3.4",
     "python-json-logger>=2.0.7",
     "orjson>=3.10.0",
+    "uuid-utils>=0.9.0",
 ]
 
 [project.optional-dependencies]
@@ -85,7 +86,7 @@ warn_redundant_casts = true
 exclude = ["legacy/", "migrations/versions/"]
 
 [[tool.mypy.overrides]]
-module = ["selectolax.*", "testcontainers.*"]
+module = ["selectolax.*", "testcontainers.*", "uuid_utils.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

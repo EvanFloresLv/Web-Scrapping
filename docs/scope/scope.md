@@ -74,10 +74,10 @@ Core entities every MVP feature depends on: Website, TargetURL (both specified b
 **Done when:** the MVP data model is pinned in spec 0003; ORM models and the `WorkflowConfig` Pydantic validator exist in `src/app/domains/`; the error-code registry module is in place; later slice migrations (features 5, 7) conform to the spec exactly.
 - [x] Design it (spec): `/architect data model (MVP entities)`
 - [ ] Build it: `/develop data model (MVP entities)`
-  - [ ] ORM models for workflows and executions in `src/app/domains/{workflows,executions}/models.py` plus shared enums (satisfies AC-2, AC-3, AC-4, AC-6, AC-7, AC-9, AC-10, AC-12, AC-14)
-  - [ ] `WorkflowConfig` Pydantic validator with `extra='allow'` in `src/app/domains/workflows/config.py` (satisfies AC-5, AC-13)
-  - [ ] Repository protocol stubs with `with_deleted=False` seams in `src/app/domains/{workflows,executions}/repository.py` (satisfies AC-2, AC-6, AC-20)
-  - [ ] Error-code registry module in `src/app/core/errors/execution_codes.py` (satisfies AC-17)
+  - [x] ORM models for workflows and executions in `src/app/domains/{workflows,executions}/models.py` plus shared enums (satisfies AC-2, AC-3, AC-4, AC-6, AC-7, AC-9, AC-10, AC-12, AC-14)
+  - [x] `WorkflowConfig` Pydantic validator with `extra='allow'` in `src/app/domains/workflows/config.py` (satisfies AC-5, AC-13)
+  - [x] Repository protocol stubs with `with_deleted=False` seams in `src/app/domains/{workflows,executions}/repository.py` (satisfies AC-2, AC-6, AC-20)
+  - [x] Error-code registry module in `src/app/core/errors/execution_codes.py` (satisfies AC-17)
 - [ ] Verify it: `/check verify data model (MVP entities)`
 - [ ] Test it: `/test data model (MVP entities)`
 Spec [0003](../specs/0003-data-model-mvp/index.md)
