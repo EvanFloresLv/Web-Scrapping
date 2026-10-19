@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+
+# Virtual envs & tool caches
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+
+# Local secrets and dev data
+.env
+.env.local
+
+# Legacy ADK runtime artifacts
+.adk/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Docker
+postgres_data/
+
+# Agent workflow caches
+docs/.agent-cache/
