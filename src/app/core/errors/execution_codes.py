@@ -27,11 +27,29 @@ from enum import StrEnum
 
 
 class FetchErrorCode(StrEnum):
-    """HTTP fetch failures. Populated by feature 6."""
+    """HTTP fetch failures (spec 0005 AC-14)."""
+
+    TIMEOUT = "fetch.timeout"
+    HTTP_ERROR = "fetch.http_error"
+    CONNECTION_ERROR = "fetch.connection_error"
+    TOO_MANY_REDIRECTS = "fetch.too_many_redirects"
+    BODY_TOO_LARGE = "fetch.body_too_large"
+    UNSUPPORTED_CONTENT_TYPE = "fetch.unsupported_content_type"
+    INVALID_URL = "fetch.invalid_url"
 
 
 class ExtractionErrorCode(StrEnum):
-    """Deterministic extractor failures. Populated by feature 6."""
+    """Deterministic extractor failures (spec 0005 AC-14)."""
+
+    NO_CONTAINER_MATCH = "extraction.no_container_match"
+    REQUIRED_FIELD_MISSING = "extraction.required_field_missing"
+    TYPE_COERCION_ERROR = "extraction.type_coercion_error"
+    TRANSFORM_ERROR = "extraction.transform_error"
+    SELECTOR_SYNTAX_ERROR = "extraction.selector_syntax_error"
+    OUTPUT_SCHEMA_MISMATCH = "extraction.output_schema_mismatch"
+    PAGINATION_UNSUPPORTED = "extraction.pagination_unsupported"
+    TARGET_NOT_REGISTERED = "extraction.target_not_registered"
+    INVALID_PREVIEW_BODY = "extraction.invalid_preview_body"
 
 
 class ExecutionErrorCode(StrEnum):

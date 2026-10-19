@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     http_read_timeout_s: float = Field(default=25.0)
     http_total_timeout_s: float = Field(default=30.0)
 
+    # Deterministic HTML extraction fetch limits (spec 0005 AC-4).
+    extraction_http_connect_timeout_s: float = Field(default=5.0)
+    extraction_http_read_timeout_s: float = Field(default=15.0)
+    extraction_http_total_timeout_s: float = Field(default=20.0)
+    extraction_http_max_body_bytes: int = Field(default=10_000_000)
+    extraction_http_max_redirects: int = Field(default=5)
+    extraction_http_user_agent: str = Field(
+        default="CatalogEnrichmentBot/0.1 (+https://example.com/bot)"
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

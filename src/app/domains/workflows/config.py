@@ -25,7 +25,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class FieldSpec(BaseModel):
-    """One extracted field inside a container element (AC-5)."""
+    """One extracted field inside a container element (AC-5).
+
+    `required` (spec 0005 AC-13) is additive: historical configs without the
+    key read as `required=True` by default, keeping the extractor strict.
+    """
 
     model_config = ConfigDict(extra="allow")
 
@@ -33,6 +37,7 @@ class FieldSpec(BaseModel):
     selector: str = Field(min_length=1)
     transforms: list[str] = Field(default_factory=list)
     type: str = Field(min_length=1)
+    required: bool = True
 
 
 class PaginationSpec(BaseModel):
