@@ -121,13 +121,24 @@ name = "Domains must not import each other directly"
 type = "independence"
 # `app.domains.agents` joins this list when Slice 4 lands its module
 # (spec 0001 keeps that folder empty until then).
+# `app.domains.extraction` is deliberately out of this contract: spec 0005
+# AC-1 types ExtractionService.run on WorkflowVersion and target URL, so
+# extraction is a layered reader over workflows + websites rather than an
+# independent sibling.
 modules = [
     "app.domains.websites",
     "app.domains.workflows",
     "app.domains.executions",
-    "app.domains.extraction",
     "app.domains.products",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Extraction only reads workflows + websites, never writes them"
+type = "forbidden"
+# Extraction imports WorkflowConfig / FieldSpec / CanonicalURL for input,
+# but domains the other way around would create a cycle.
+source_modules = ["app.domains.workflows", "app.domains.websites"]
+forbidden_modules = ["app.domains.extraction"]
 
 [[tool.importlinter.contracts]]
 name = "Infrastructure must not import domains"
