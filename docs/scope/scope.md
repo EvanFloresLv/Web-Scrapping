@@ -14,10 +14,10 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
 | A | Legacy ADK/Gemini agent | Reference | existing |
-| 1 | Stack & architecture | Foundation | in-progress |
-| 2 | Coding standards & tooling | Foundation | planned |
-| 3 | Data model (MVP entities) | Foundation | planned |
-| 4 | Website & target registration | Slice 1 (MVP) | planned |
+| 1 | Stack & architecture | Foundation | done |
+| 2 | Coding standards & tooling | Foundation | in-progress |
+| 3 | Data model (MVP entities) | Foundation | in-progress |
+| 4 | Website & target registration | Slice 1 (MVP) | in-progress |
 | 5 | Workflow configuration & versioning | Slice 1 (MVP) | planned |
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | planned |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | planned |
@@ -51,34 +51,52 @@ Kept for reference. The current `web_scraping/` package is a Google ADK agent or
 
 ## Foundations
 
-### 1. Stack & architecture · in-progress
+### 1. Stack & architecture · done
 Decide the backend stack, database, migrations, project layout, and local dev shape, then scaffold a runnable project so every later slice builds on real structure.
 **Done when:** the stack is recorded in a spec, the empty scaffold boots locally, and `GET /health/live` returns 200.
 - [x] Decide the stack (spec): `/architect stack & architecture`
 - [x] Scaffold from the decision: `/develop stack & architecture`
 - [x] Verify it: `/check verify stack & architecture`
-- [ ] Test it: `/test stack & architecture`
+- [x] Test it: `/test stack & architecture`
 Spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `./src/app/`
 
 ### 2. Coding standards & tooling
 Capture conventions and tooling into root `AGENTS.md`, then install lint, format, type-check, and pre-commit enforcement so later work stays consistent.
 **Done when:** root `AGENTS.md` exists and reflects the real stack, and lint/format/type-check run clean on the scaffold.
-- [ ] Capture conventions + tooling choices: `/audit`
-- [ ] Install the tooling: `/develop coding standards & tooling`
-- [ ] Verify it: `/check verify coding standards & tooling`
-- [ ] Test it: `/test coding standards & tooling`
+- [x] Capture conventions + tooling choices: `/audit`
+- [x] Install the tooling: `/develop coding standards & tooling`
+- [x] Verify it: `/check verify coding standards & tooling`
+- [x] Test it: `/test coding standards & tooling` _(skipped: no testable surface; the gates themselves are the test)_
+code in `./` (root `AGENTS.md`, `pyproject.toml`, `.pre-commit-config.yaml`)
 
-### 3. Data model (MVP entities) · needs a decision
-Core entities every MVP feature depends on: Website, TargetURL, ScrapingWorkflow, WorkflowVersion, ExtractionRule, Execution, ExecutionResult. Includes migration strategy and audit fields.
-**Done when:** entities and relationships support slices 1 through 3 without a breaking migration; initial migration applies cleanly.
-- [ ] Design it (spec): `/architect data model (MVP entities)`
+### 3. Data model (MVP entities)
+Core entities every MVP feature depends on: Website, TargetURL (both specified by spec 0002), ScrapingWorkflow, WorkflowVersion, Execution, ExecutionResult. ExtractionRule is embedded as JSONB inside `workflow_versions.config` rather than its own table. Covers migration strategy (one per slice), audit fields, lifecycle enums, FK policies, and concurrency rules.
+**Done when:** the MVP data model is pinned in spec 0003; ORM models and the `WorkflowConfig` Pydantic validator exist in `src/app/domains/`; the error-code registry module is in place; later slice migrations (features 5, 7) conform to the spec exactly.
+- [x] Design it (spec): `/architect data model (MVP entities)`
+- [ ] Build it: `/develop data model (MVP entities)`
+  - [ ] ORM models for workflows and executions in `src/app/domains/{workflows,executions}/models.py` plus shared enums (satisfies AC-2, AC-3, AC-4, AC-6, AC-7, AC-9, AC-10, AC-12, AC-14)
+  - [ ] `WorkflowConfig` Pydantic validator with `extra='allow'` in `src/app/domains/workflows/config.py` (satisfies AC-5, AC-13)
+  - [ ] Repository protocol stubs with `with_deleted=False` seams in `src/app/domains/{workflows,executions}/repository.py` (satisfies AC-2, AC-6, AC-20)
+  - [ ] Error-code registry module in `src/app/core/errors/execution_codes.py` (satisfies AC-17)
+- [ ] Verify it: `/check verify data model (MVP entities)`
+- [ ] Test it: `/test data model (MVP entities)`
+Spec [0003](../specs/0003-data-model-mvp/index.md)
 
 ## Slice 1: Deterministic workflow MVP
 
-### 4. Website & target registration · needs a decision
+### 4. Website & target registration
 Register allowed websites and target URLs through the API, with validation and canonicalization, so workflows can bind to known targets.
 **Done when:** `POST /websites` and `POST /targets` create and list records, duplicate URLs are canonicalized, and invalid inputs return structured 4xx errors.
-- [ ] Design it (spec): `/architect website & target registration`
+- [x] Design it (spec): `/architect website & target registration`
+- [ ] Build it: `/develop website & target registration`
+  - [ ] Migration for `websites` + `target_urls` with partial unique indexes
+  - [ ] Domain model (ORM + `CanonicalHost` / `CanonicalURL` value objects + repository)
+  - [ ] Service layer (duplicate, host-match, parent-state, immutable-field invariants)
+  - [ ] Router (POST + GET list + GET single for websites and targets)
+  - [ ] PATCH + DELETE (soft-delete with cascade) + Problem Details error mapping
+- [ ] Verify it: `/check verify website & target registration`
+- [ ] Test it: `/test website & target registration`
+Spec [0002](../specs/0002-website-target-registration.md)
 
 ### 5. Workflow configuration & versioning · needs a decision
 Define a reusable scraping workflow with typed parameters, extraction rules (container + fields + selectors + transforms), and immutable versions.

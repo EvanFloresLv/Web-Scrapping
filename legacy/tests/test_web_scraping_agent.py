@@ -256,4 +256,3 @@ def test_adk_root_agent_registration():
         "consolidator_engine",
     }
     assert expected_tools.issubset(set(tool_names))
-

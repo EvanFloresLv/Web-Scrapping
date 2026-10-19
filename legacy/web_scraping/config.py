@@ -335,4 +335,3 @@ def get_default_model() -> str:
 def get_pro_model() -> str:
     """Devuelve el modelo Gemini configurado para evaluación crítica y consolidación."""
     return os.getenv("PRO_MODEL_NAME", os.getenv("MODEL_NAME", "gemini-2.5-flash"))
-

@@ -6,8 +6,14 @@ Problem Details handles unknown routes, and the request-size cap rejects oversiz
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
+
+from app.core.config import Settings
+from app.core.database import get_session
+from app.main import create_app
 
 
 @pytest.mark.asyncio
@@ -54,3 +60,41 @@ async def test_oversize_body_is_rejected(client: AsyncClient) -> None:
     assert response.status_code == 413
     assert response.headers["content-type"].startswith("application/problem+json")
     assert response.json()["code"] == "http.413"
+
+
+@pytest.mark.asyncio
+async def test_live_generates_correlation_id_when_absent(client: AsyncClient) -> None:
+    """If the caller does not send X-Request-ID, the middleware generates one."""
+    response = await client.get("/api/v1/health/live")
+    assert response.status_code == 200
+    generated = response.headers.get("x-request-id")
+    assert generated, "x-request-id header missing from response"
+    assert len(generated) >= 8
+
+
+class _ExplodingSession:
+    """Session stand-in that raises on execute, to drive the degraded ready path."""
+
+    async def execute(self, _stmt):  # type: ignore[no-untyped-def]
+        raise RuntimeError("database unreachable")
+
+
+async def _override_exploding_session() -> AsyncIterator[_ExplodingSession]:
+    yield _ExplodingSession()
+
+
+@pytest.mark.asyncio
+async def test_ready_reports_degraded_when_database_fails() -> None:
+    app = create_app(Settings(environment="test", log_json=False))
+    app.dependency_overrides[get_session] = _override_exploding_session
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.get("/api/v1/health/ready")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["database"] is False
+    assert payload["status"] == "degraded"

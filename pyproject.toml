@@ -70,6 +70,8 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 "migrations/**" = ["N"]
+# One-off utility scripts: allow print statements and loose style.
+"scripts/**" = ["T20", "SIM108"]
 
 # ---------------------------------------------------------------------------
 # mypy: strict project wide. Spec 0001 pin.
@@ -107,13 +109,14 @@ root_packages = ["app"]
 [[tool.importlinter.contracts]]
 name = "Domains must not import each other directly"
 type = "independence"
+# `app.domains.agents` joins this list when Slice 4 lands its module
+# (spec 0001 keeps that folder empty until then).
 modules = [
     "app.domains.websites",
     "app.domains.workflows",
     "app.domains.executions",
     "app.domains.extraction",
     "app.domains.products",
-    "app.domains.agents",
 ]
 
 [[tool.importlinter.contracts]]

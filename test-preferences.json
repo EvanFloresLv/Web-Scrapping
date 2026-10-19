@@ -1,0 +1,10 @@
+{
+  "tool": "pytest",
+  "additionalTools": ["pytest-asyncio", "httpx"],
+  "e2eTool": null,
+  "testDir": "tests",
+  "filePattern": "test_*.py",
+  "packageManager": "uv",
+  "stack": "python-fastapi",
+  "runCommand": "uv run pytest -q"
+}

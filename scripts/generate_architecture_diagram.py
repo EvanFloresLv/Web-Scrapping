@@ -184,7 +184,11 @@ def _create_source_badge_icon(
             (62, 82),
         ]
         draw.polygon(pts, fill=(*color, 230))
-        draw.line([(cx - 24, cy + 4), (cx - 6, cy + 24), (cx + 28, cy - 16)], fill=(255, 255, 255, 255), width=12)
+        draw.line(
+            [(cx - 24, cy + 4), (cx - 6, cy + 24), (cx + 28, cy - 16)],
+            fill=(255, 255, 255, 255),
+            width=12,
+        )
     elif symbol == "trusted":
         # Globo / Red de catálogos verificados
         r = 66
@@ -210,9 +214,15 @@ def build_diagram() -> str:
     gemini_icon = _create_gemini_icon(icons_dir / "gemini.png")
     gsearch_icon = _create_google_search_icon(icons_dir / "google_search.png")
     glens_icon = _create_google_lens_icon(icons_dir / "google_lens.png")
-    official_icon = _create_source_badge_icon(icons_dir / "source_official.png", (26, 115, 232), "official")
-    trusted_icon = _create_source_badge_icon(icons_dir / "source_trusted.png", (30, 142, 62), "trusted")
-    third_party_icon = _create_source_badge_icon(icons_dir / "source_3rd_party.png", (249, 171, 0), "3rd_party")
+    official_icon = _create_source_badge_icon(
+        icons_dir / "source_official.png", (26, 115, 232), "official"
+    )
+    trusted_icon = _create_source_badge_icon(
+        icons_dir / "source_trusted.png", (30, 142, 62), "trusted"
+    )
+    third_party_icon = _create_source_badge_icon(
+        icons_dir / "source_3rd_party.png", (249, 171, 0), "3rd_party"
+    )
 
     output_base = str(output_dir / "web_scraping_gcp_architecture")
 
@@ -261,7 +271,9 @@ def build_diagram() -> str:
                 gemini_icon,
             )
 
-            with Cluster("1. Sub-Agentes de Búsqueda e Investigación (Seleccionables 1, 2 o los 3)"):
+            with Cluster(
+                "1. Sub-Agentes de Búsqueda e Investigación (Seleccionables 1, 2 o los 3)"
+            ):
                 search_agent = Custom(
                     "SUB-AGENTE: google_search_engine\n"
                     "[Modelo: gemini-3.8-flash]\n"
@@ -297,7 +309,9 @@ def build_diagram() -> str:
                     glens_icon,
                 )
 
-            with Cluster("2. Fuentes de Información Modulares (Seleccionables por separado o juntas)"):
+            with Cluster(
+                "2. Fuentes de Información Modulares (Seleccionables por separado o juntas)"
+            ):
                 src_official = Custom(
                     "Opción 1: official_only\n"
                     "• Solo Página Oficial de la Marca\n"
@@ -348,10 +362,18 @@ def build_diagram() -> str:
         # Conexiones de entrada y plataforma
         user_input >> Edge(label="Input + Config", color="#1A73E8", style="bold") >> adk_runtime
         adk_runtime >> Edge(color="#1A73E8", style="bold") >> root_agent
-        vertex_platform >> Edge(style="dashed", color="#9334E6", label="gemini-3.8-flash") >> root_agent
+        (
+            vertex_platform
+            >> Edge(style="dashed", color="#9334E6", label="gemini-3.8-flash")
+            >> root_agent
+        )
 
         # Orquestador a los 3 Sub-Agentes de Motores
-        root_agent >> Edge(label="Motor 1 (Opcional)", color="#1E8E3E", style="bold") >> search_agent
+        (
+            root_agent
+            >> Edge(label="Motor 1 (Opcional)", color="#1E8E3E", style="bold")
+            >> search_agent
+        )
         root_agent >> Edge(label="Motor 2 (Opcional)", color="#1E8E3E", style="bold") >> lens_agent
         root_agent >> Edge(label="Motor 3 (Opcional)", color="#1E8E3E", style="bold") >> deep_agent
 
@@ -371,12 +393,16 @@ def build_diagram() -> str:
             src >> Edge(color="#1A73E8") >> ranking_agent
 
         # Flujo secuencial de Ranking -> Evaluador Crítico -> Consolidador
-        ranking_agent >> Edge(
-            label="Fuentes Rankeadas\n(0-100)", color="#9334E6", style="bold"
-        ) >> evaluator_agent
-        evaluator_agent >> Edge(
-            label="Datos Auditados\n(Triple Validación)", color="#D93025", style="bold"
-        ) >> consolidator_agent
+        (
+            ranking_agent
+            >> Edge(label="Fuentes Rankeadas\n(0-100)", color="#9334E6", style="bold")
+            >> evaluator_agent
+        )
+        (
+            evaluator_agent
+            >> Edge(label="Datos Auditados\n(Triple Validación)", color="#D93025", style="bold")
+            >> consolidator_agent
+        )
 
     return f"{output_base}.png"
 
