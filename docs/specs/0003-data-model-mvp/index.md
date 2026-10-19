@@ -1,7 +1,7 @@
 # 0003. Data model (MVP entities)
 
 **Date**: 2026-10-19
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

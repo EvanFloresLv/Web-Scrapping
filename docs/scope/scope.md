@@ -16,7 +16,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | A | Legacy ADK/Gemini agent | Reference | existing |
 | 1 | Stack & architecture | Foundation | done |
 | 2 | Coding standards & tooling | Foundation | in-progress |
-| 3 | Data model (MVP entities) | Foundation | in-progress |
+| 3 | Data model (MVP entities) | Foundation | done |
 | 4 | Website & target registration | Slice 1 (MVP) | in-progress |
 | 5 | Workflow configuration & versioning | Slice 1 (MVP) | planned |
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | planned |
@@ -78,8 +78,8 @@ Core entities every MVP feature depends on: Website, TargetURL (both specified b
   - [x] `WorkflowConfig` Pydantic validator with `extra='allow'` in `src/app/domains/workflows/config.py` (satisfies AC-5, AC-13)
   - [x] Repository protocol stubs with `with_deleted=False` seams in `src/app/domains/{workflows,executions}/repository.py` (satisfies AC-2, AC-6, AC-20)
   - [x] Error-code registry module in `src/app/core/errors/execution_codes.py` (satisfies AC-17)
-- [ ] Verify it: `/check verify data model (MVP entities)`
-- [ ] Test it: `/test data model (MVP entities)`
+- [x] Verify it: `/check verify data model (MVP entities)`
+- [x] Test it: `/test data model (MVP entities)`
 Spec [0003](../specs/0003-data-model-mvp/index.md)
 
 ## Slice 1: Deterministic workflow MVP
