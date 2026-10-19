@@ -17,7 +17,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 1 | Stack & architecture | Foundation | done |
 | 2 | Coding standards & tooling | Foundation | in-progress |
 | 3 | Data model (MVP entities) | Foundation | done |
-| 4 | Website & target registration | Slice 1 (MVP) | in-progress |
+| 4 | Website & target registration | Slice 1 (MVP) | in-progress (built, awaiting verify) |
 | 5 | Workflow configuration & versioning | Slice 1 (MVP) | planned |
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | planned |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | planned |
@@ -88,15 +88,15 @@ Spec [0003](../specs/0003-data-model-mvp/index.md)
 Register allowed websites and target URLs through the API, with validation and canonicalization, so workflows can bind to known targets.
 **Done when:** `POST /websites` and `POST /targets` create and list records, duplicate URLs are canonicalized, and invalid inputs return structured 4xx errors.
 - [x] Design it (spec): `/architect website & target registration`
-- [ ] Build it: `/develop website & target registration`
-  - [ ] Migration for `websites` + `target_urls` with partial unique indexes
-  - [ ] Domain model (ORM + `CanonicalHost` / `CanonicalURL` value objects + repository)
-  - [ ] Service layer (duplicate, host-match, parent-state, immutable-field invariants)
-  - [ ] Router (POST + GET list + GET single for websites and targets)
-  - [ ] PATCH + DELETE (soft-delete with cascade) + Problem Details error mapping
+- [x] Build it: `/develop website & target registration`
+  - [x] Migration for `websites` + `target_urls` with partial unique indexes
+  - [x] Domain model (ORM + `CanonicalHost` / `CanonicalURL` value objects + repository)
+  - [x] Service layer (duplicate, host-match, parent-state, immutable-field invariants)
+  - [x] Router (POST + GET list + GET single for websites and targets)
+  - [x] PATCH + DELETE (soft-delete with cascade) + Problem Details error mapping
 - [ ] Verify it: `/check verify website & target registration`
 - [ ] Test it: `/test website & target registration`
-Spec [0002](../specs/0002-website-target-registration.md)
+Spec [0002](../specs/0002-website-target-registration/index.md) · code in `src/app/domains/websites/` + `src/app/api/v1/websites.py` + `migrations/versions/202610191000_add_websites_and_target_urls.py`
 
 ### 5. Workflow configuration & versioning · needs a decision
 Define a reusable scraping workflow with typed parameters, extraction rules (container + fields + selectors + transforms), and immutable versions.
