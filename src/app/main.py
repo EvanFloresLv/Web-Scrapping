@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -58,9 +59,19 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     log = get_logger("app.lifespan")
     log.info("startup", app=settings.app_name, env=settings.environment)
+
+    # Shared httpx.AsyncClient for extraction (spec 0005 AC-4). One client per
+    # process; the fetcher reuses the connection pool for every fetch.
+    http_client = httpx.AsyncClient(
+        http2=True,
+        max_redirects=settings.extraction_http_max_redirects,
+    )
+    app.state.http_client = http_client
+
     try:
         yield
     finally:
+        await http_client.aclose()
         await dispose_engine()
         log.info("shutdown")
 

@@ -88,7 +88,14 @@ warn_redundant_casts = true
 exclude = ["legacy/", "migrations/versions/"]
 
 [[tool.mypy.overrides]]
-module = ["selectolax.*", "testcontainers.*", "uuid_utils.*", "jsonschema.*", "respx.*"]
+module = [
+    "selectolax.*",
+    "testcontainers.*",
+    "uuid_utils.*",
+    "jsonschema.*",
+    "respx.*",
+    "charset_normalizer.*",
+]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
