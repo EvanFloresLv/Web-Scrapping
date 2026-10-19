@@ -17,9 +17,9 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 1 | Stack & architecture | Foundation | done |
 | 2 | Coding standards & tooling | Foundation | in-progress |
 | 3 | Data model (MVP entities) | Foundation | done |
-| 4 | Website & target registration | Slice 1 (MVP) | in-progress (built, awaiting verify) |
-| 5 | Workflow configuration & versioning | Slice 1 (MVP) | planned |
-| 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | planned |
+| 4 | Website & target registration | Slice 1 (MVP) | in-progress (tested, awaiting done) |
+| 5 | Workflow configuration & versioning | Slice 1 (MVP) | in-progress |
+| 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | in-progress |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | planned |
 | 8 | Structured errors & health endpoints | Slice 1 (MVP) | planned |
 | 9 | Admin UI foundation | Slice 2 (Admin UI) | planned |
@@ -94,19 +94,43 @@ Register allowed websites and target URLs through the API, with validation and c
   - [x] Service layer (duplicate, host-match, parent-state, immutable-field invariants)
   - [x] Router (POST + GET list + GET single for websites and targets)
   - [x] PATCH + DELETE (soft-delete with cascade) + Problem Details error mapping
-- [ ] Verify it: `/check verify website & target registration`
-- [ ] Test it: `/test website & target registration`
+- [x] Verify it: `/check verify website & target registration`
+- [x] Test it: `/test website & target registration`
 Spec [0002](../specs/0002-website-target-registration/index.md) · code in `src/app/domains/websites/` + `src/app/api/v1/websites.py` + `migrations/versions/202610191000_add_websites_and_target_urls.py`
 
-### 5. Workflow configuration & versioning · needs a decision
+### 5. Workflow configuration & versioning
 Define a reusable scraping workflow with typed parameters, extraction rules (container + fields + selectors + transforms), and immutable versions.
 **Done when:** workflows are created, versioned, retrieved, and validated against a schema; versions are immutable after creation.
-- [ ] Design it (spec): `/architect workflow configuration & versioning`
+- [x] Design it (spec): `/architect workflow configuration & versioning`
+- [x] Build it: `/develop workflow configuration & versioning`
+  - [x] Alembic migration + repository groundwork + `WorkflowErrorCode` registry extension (satisfies AC-14, AC-15, AC-16)
+  - [x] Workflow CRUD service + router (POST + GET list + GET single + PATCH + soft DELETE with in-flight gate) (satisfies AC-1, AC-2, AC-3, AC-4, AC-5)
+  - [x] Version create and edit (POST draft + list + get + PATCH draft + hard DELETE draft, with coherence validation) (satisfies AC-6, AC-7, AC-8, AC-9, AC-10, AC-17)
+  - [x] Publish and archive lifecycle actions (atomic publish transaction + archive refusal on current) (satisfies AC-11, AC-12)
+  - [x] Problem Details error mapping across every endpoint (satisfies AC-13)
+- [x] Verify it: `/check verify workflow configuration & versioning`
+- [x] Test it: `/test workflow configuration & versioning`
+Spec [0004](../specs/0004-workflow-configuration-versioning/index.md) · code in `src/app/domains/workflows/` + `src/app/api/v1/workflows.py` + `migrations/versions/202610200900_add_workflows_and_versions.py`
+**Considerations (test gaps worth revisiting):**
+- AC-6 one-shot retry on `(workflow_id, version_number)` races: reachable only by simulating a lost race (monkeypatch `next_version_number`); add a dedicated service-level test if feature 7 or 10 exposes concurrent draft creation in practice.
+- AC-11 concurrent-publish contention: needs two sessions and real `SELECT ... FOR UPDATE` ordering; the suite covers the superseded-draft path sequentially (`publish same draft twice → 409 version_conflict`). Add a true two-session test when a load scenario appears.
+- AC-14 Alembic round-trip (`upgrade → downgrade -1 → upgrade`): a migration-level test, not in the API suite; defer to `/check verify` or a focused migration test alongside feature 7's migration.
+- AC-16 / AC-17 at the repository layer: exercised through HTTP paths; a pure-repo unit set would duplicate the API suite for this slice.
+- Repository short-circuit on `has_in_flight_executions`: `to_regclass` branch is unreachable now that `executions` ships with this test setup; keep for the pre-feature-7 world and drop once feature 7 is in.
 
-### 6. Deterministic HTML extraction (static) · needs a decision
+### 6. Deterministic HTML extraction (static)
 Fetch static HTML, apply configured selectors and transforms, and emit structured JSON matching the workflow's output schema. No LLM in the path.
 **Done when:** given a fixture page and a workflow, the extractor produces the expected structured output; missing fields, bad selectors, and empty results return structured errors.
-- [ ] Design it (spec): `/architect deterministic HTML extraction (static)`
+- [x] Design it (spec): `/architect deterministic HTML extraction (static)`
+- [ ] Build it: `/develop deterministic HTML extraction (static)`
+  - [ ] Preconditions: extend `WorkflowConfig` with `fields[*].required`, add `FetchErrorCode` + `ExtractionErrorCode` enums, add `jsonschema` and `respx` deps, add six `EXTRACTION_HTTP_*` settings (satisfies AC-4, AC-9, AC-10, AC-13, AC-14)
+  - [ ] Fetch and parse core: scaffold `src/app/domains/extraction/` + `import-linter` contract, implement `HttpFetcher` (shared lifespan `httpx.AsyncClient`, HTTP/2, timeouts, redirect cap, streamed body cap, content type gate, charset resolution), implement `HtmlParser` over selectolax (satisfies AC-1, AC-4, AC-5, AC-6)
+  - [ ] Extraction pipeline: `Extractor` with container iteration and per field selector + transform pipeline, full transform set, type coercion for `integer | decimal | boolean | url`, `OutputSchemaValidator` using `jsonschema` draft 2020-12 (satisfies AC-7, AC-8, AC-9, AC-10, AC-11)
+  - [ ] Service composition and preview endpoint: `ExtractionService.run(...)` gating on `pagination`, structlog events plus metrics wrapper stub, `POST /api/v1/workflows/{workflow_id}/versions/{id}/preview` with target URL resolution against `target_urls` and Problem Details error mapping (satisfies AC-1, AC-2, AC-3, AC-12, AC-15, AC-16, AC-17, AC-18)
+  - [ ] Fixture suite and golden file tests under `tests/fixtures/extraction/` covering every transform, every error code, and the preview endpoint's status axes (satisfies AC-19)
+- [ ] Verify it: `/check verify deterministic HTML extraction (static)`
+- [ ] Test it: `/test deterministic HTML extraction (static)`
+Spec [0005](../specs/0005-deterministic-html-extraction/index.md)
 
 ### 7. Workflow execution endpoint (sync) · needs a decision
 `POST /workflows/{id}/execute` runs a workflow against a target URL, persists an Execution record, and returns the structured result synchronously.

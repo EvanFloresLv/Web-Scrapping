@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import health, websites
+from app.api.v1 import health, websites, workflows
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health.router)
 api_v1_router.include_router(websites.router)
+api_v1_router.include_router(workflows.router)

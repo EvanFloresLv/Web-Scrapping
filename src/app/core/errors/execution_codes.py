@@ -42,6 +42,34 @@ class AgentErrorCode(StrEnum):
     """LLM assisted path failures. Populated by feature 15 and beyond."""
 
 
+class WorkflowErrorCode(StrEnum):
+    """Workflow configuration and versioning failures (spec 0004, AC-15).
+
+    The MVP set covers lookups (404), lifecycle refusals (409), and
+    validation failures (422). Codes stay stable across runs so the admin
+    UI and clients can switch on them.
+    """
+
+    # 404 lookups
+    WEBSITE_NOT_FOUND = "website_not_found"
+    WORKFLOW_NOT_FOUND = "workflow_not_found"
+    VERSION_NOT_FOUND = "version_not_found"
+
+    # 409 conflicts
+    NAME_CONFLICT = "workflow.name_conflict"
+    VERSION_CONFLICT = "workflow.version_conflict"
+    VERSION_NOT_DRAFT = "workflow.version_not_draft"
+    VERSION_NOT_PUBLISHED = "workflow.version_not_published"
+    VERSION_IS_CURRENT = "workflow.version_is_current"
+    HAS_IN_FLIGHT_EXECUTIONS = "workflow.has_in_flight_executions"
+    INACTIVE = "workflow.inactive"
+
+    # 422 validation
+    VALIDATION_ERROR = "workflow.validation_error"
+    IMMUTABLE_FIELD = "workflow.immutable_field"
+    INVALID_PAGINATION = "workflow.invalid_pagination"
+
+
 # Convenience union used by writer-side type hints once concrete codes land.
 ExecutionErrorCodeValue = FetchErrorCode | ExtractionErrorCode | ExecutionErrorCode | AgentErrorCode
 
@@ -51,4 +79,5 @@ __all__ = [
     "ExecutionErrorCodeValue",
     "ExtractionErrorCode",
     "FetchErrorCode",
+    "WorkflowErrorCode",
 ]

@@ -1,98 +1,274 @@
-"""Repository protocols for the workflows domain (spec 0003).
+"""Repository for the workflows domain (spec 0004).
 
-Shapes the CRUD and lifecycle surface each slice feature will implement
-against. Concrete implementations land with the slice that owns them:
+One concrete repository class holding the CRUD surface for the two
+aggregates: `ScrapingWorkflow` and `WorkflowVersion`. The services depend
+on this interface. Soft deleted workflows are filtered out of every read
+path by default (AC-16); an explicit `with_deleted=True` opts into history
+reads, including versions whose parent workflow is soft deleted.
 
-- Feature 5 (workflow configuration & versioning) implements `WorkflowRepository`
-  and `WorkflowVersionRepository` on top of `AsyncSession` using the patterns
-  pinned in [0001](../../../docs/specs/0001-stack-and-architecture/index.md).
-
-Default read filter (AC-20): every `list` and `get` filters out logically
-deleted parents (`WHERE scraping_workflows.deleted_at IS NULL` applied through
-the join chain). An explicit `with_deleted=True` keyword opts into history
-reads; feature 18 (products & provenance) and future retention jobs are the
-only callers that pass it.
+The transactional lifecycle actions (`publish_atomic`) live here too, so
+the lock scope (one `SELECT ... FOR UPDATE` on the parent row) is pinned in
+one place and the service layer stays policy only.
 """
 
 from __future__ import annotations
 
-from typing import Protocol
+from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import exists, func, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domains.executions.enums import ExecutionStatus
+from app.domains.executions.models import Execution
+from app.domains.websites.models import Website
+from app.domains.workflows.enums import WorkflowStatus, WorkflowVersionStatus
 from app.domains.workflows.models import ScrapingWorkflow, WorkflowVersion
 
 
-class WorkflowRepository(Protocol):
-    """Persistence surface for `ScrapingWorkflow` aggregates (AC-2)."""
+def _utcnow() -> datetime:
+    return datetime.now(tz=UTC)
 
-    async def get(
+
+class WorkflowRepository:
+    """Persistence surface for `ScrapingWorkflow` + `WorkflowVersion` (spec 0004)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    # ---- parent website lookup (for 404 mapping) ------------------------
+
+    async def get_live_website(self, website_id: UUID) -> Website | None:
+        stmt = select(Website).where(
+            Website.id == website_id,
+            Website.deleted_at.is_(None),
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    # ---- scraping_workflows ---------------------------------------------
+
+    async def add_workflow(self, workflow: ScrapingWorkflow) -> None:
+        self._session.add(workflow)
+        await self._session.flush()
+
+    async def get_workflow(
         self,
         workflow_id: UUID,
         *,
         with_deleted: bool = False,
     ) -> ScrapingWorkflow | None:
-        """Fetch a workflow by id. Soft deleted parents are hidden unless `with_deleted=True`."""
-        ...
+        """Return a workflow by id. Hides soft deleted rows by default (AC-16)."""
+        stmt = select(ScrapingWorkflow).where(ScrapingWorkflow.id == workflow_id)
+        if not with_deleted:
+            stmt = stmt.where(ScrapingWorkflow.deleted_at.is_(None))
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def list_for_website(
+    async def get_workflow_for_update(
+        self,
+        workflow_id: UUID,
+        *,
+        with_deleted: bool = False,
+    ) -> ScrapingWorkflow | None:
+        """Fetch the workflow row with `FOR UPDATE` (AC-6, AC-11)."""
+        stmt = select(ScrapingWorkflow).where(ScrapingWorkflow.id == workflow_id).with_for_update()
+        if not with_deleted:
+            stmt = stmt.where(ScrapingWorkflow.deleted_at.is_(None))
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_workflow_by_name(
+        self,
+        *,
+        website_id: UUID,
+        name: str,
+    ) -> ScrapingWorkflow | None:
+        """Return a live workflow by `(website_id, name)` for dedup (AC-2, AC-4)."""
+        stmt = select(ScrapingWorkflow).where(
+            ScrapingWorkflow.website_id == website_id,
+            ScrapingWorkflow.name == name,
+            ScrapingWorkflow.deleted_at.is_(None),
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def list_workflows_for_website(
         self,
         website_id: UUID,
         *,
+        status_filter: WorkflowStatus | None,
+        page: int,
+        page_size: int,
         with_deleted: bool = False,
-    ) -> list[ScrapingWorkflow]:
-        """List workflows under a website, newest first."""
-        ...
+    ) -> tuple[list[ScrapingWorkflow], int]:
+        """List workflows under a website with `(items, total)` (AC-3, AC-16)."""
+        base = select(ScrapingWorkflow).where(ScrapingWorkflow.website_id == website_id)
+        if not with_deleted:
+            base = base.where(ScrapingWorkflow.deleted_at.is_(None))
+        if status_filter is not None:
+            base = base.where(ScrapingWorkflow.status == status_filter.value)
 
-    async def add(self, workflow: ScrapingWorkflow) -> None:
-        """Insert a new workflow aggregate."""
-        ...
+        count_stmt = select(func.count()).select_from(base.subquery())
+        total = int((await self._session.execute(count_stmt)).scalar_one())
 
-    async def soft_delete(self, workflow_id: UUID) -> None:
-        """Mark a workflow deleted (AC-11). Refused if in-flight executions exist (AC-18)."""
-        ...
+        items_stmt = (
+            base.order_by(ScrapingWorkflow.created_at.desc(), ScrapingWorkflow.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        items = list((await self._session.execute(items_stmt)).scalars().all())
+        return items, total
 
-    async def set_current_version(
-        self,
-        workflow_id: UUID,
-        version_id: UUID,
-    ) -> None:
-        """Swap `current_version_id` to the newly published version (AC-4, atomic update)."""
-        ...
+    async def soft_delete_workflow(self, workflow: ScrapingWorkflow) -> None:
+        """Mark a workflow deleted (AC-5). Versions are hidden through the join filter."""
+        workflow.deleted_at = _utcnow()
+        await self._session.flush()
 
+    async def has_in_flight_executions(self, workflow_id: UUID) -> bool:
+        """True if any execution of this workflow's versions is pending or running (AC-5).
 
-class WorkflowVersionRepository(Protocol):
-    """Persistence surface for `WorkflowVersion` rows (AC-2, AC-13)."""
+        Short circuits when the `executions` table does not yet exist (feature
+        7 ships the migration): no table means no in flight executions, which
+        is what spec 0004 AC-5 reasons about ("empty table") expressed in a
+        pre migration world. Once feature 7 lands, `to_regclass` returns a
+        non null oid and the real query runs.
 
-    async def get(
+        Deliberately does NOT filter `workflow_versions.deleted_at`: versions
+        are not soft deletable (spec 0003 AC-9), and the gate must see every
+        live or hypothetically live execution.
+        """
+        exists_stmt = select(text("to_regclass('public.executions') IS NOT NULL"))
+        table_exists = bool((await self._session.execute(exists_stmt)).scalar_one())
+        if not table_exists:
+            return False
+
+        subq = (
+            select(WorkflowVersion.id).where(WorkflowVersion.workflow_id == workflow_id).subquery()
+        )
+        stmt = select(
+            exists().where(
+                Execution.workflow_version_id.in_(select(subq.c.id)),
+                Execution.status.in_(
+                    [ExecutionStatus.PENDING.value, ExecutionStatus.RUNNING.value]
+                ),
+            )
+        )
+        return bool((await self._session.execute(stmt)).scalar_one())
+
+    # ---- workflow_versions ----------------------------------------------
+
+    async def add_version(self, version: WorkflowVersion) -> None:
+        self._session.add(version)
+        await self._session.flush()
+
+    async def next_version_number(self, workflow_id: UUID) -> int:
+        """Return `MAX(version_number) + 1` for the workflow (AC-6).
+
+        Caller must already hold `SELECT ... FOR UPDATE` on the parent row so
+        two concurrent inserts serialize.
+        """
+        stmt = select(func.max(WorkflowVersion.version_number)).where(
+            WorkflowVersion.workflow_id == workflow_id,
+        )
+        current = (await self._session.execute(stmt)).scalar_one_or_none()
+        return int(current or 0) + 1
+
+    async def get_version(
         self,
         version_id: UUID,
         *,
         with_deleted: bool = False,
     ) -> WorkflowVersion | None:
-        """Fetch one version. Hidden when its parent is soft deleted unless `with_deleted=True`."""
-        ...
+        """Return a version by id. Hidden when its parent is soft deleted unless `with_deleted=True` (AC-16)."""
+        stmt = (
+            select(WorkflowVersion)
+            .join(
+                ScrapingWorkflow,
+                ScrapingWorkflow.id == WorkflowVersion.workflow_id,
+            )
+            .where(WorkflowVersion.id == version_id)
+        )
+        if not with_deleted:
+            stmt = stmt.where(ScrapingWorkflow.deleted_at.is_(None))
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def list_for_workflow(
+    async def get_version_for_update(self, version_id: UUID) -> WorkflowVersion | None:
+        """Re-read a version row inside the parent lock (AC-11)."""
+        stmt = select(WorkflowVersion).where(WorkflowVersion.id == version_id).with_for_update()
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def list_versions_for_workflow(
         self,
         workflow_id: UUID,
         *,
+        status_filter: WorkflowVersionStatus | None,
+        page: int,
+        page_size: int,
         with_deleted: bool = False,
-    ) -> list[WorkflowVersion]:
-        """List versions under a workflow, newest `version_number` first."""
-        ...
+    ) -> tuple[list[WorkflowVersion], int]:
+        """List versions under a workflow, newest `version_number` first (AC-8, AC-16)."""
+        base = (
+            select(WorkflowVersion)
+            .join(
+                ScrapingWorkflow,
+                ScrapingWorkflow.id == WorkflowVersion.workflow_id,
+            )
+            .where(WorkflowVersion.workflow_id == workflow_id)
+        )
+        if not with_deleted:
+            base = base.where(ScrapingWorkflow.deleted_at.is_(None))
+        if status_filter is not None:
+            base = base.where(WorkflowVersion.status == status_filter.value)
 
-    async def add_draft(self, version: WorkflowVersion) -> None:
-        """Insert a new draft version. Caller holds the parent row lock (AC-16)."""
-        ...
+        count_stmt = select(func.count()).select_from(base.subquery())
+        total = int((await self._session.execute(count_stmt)).scalar_one())
 
-    async def update_draft(self, version: WorkflowVersion) -> None:
-        """Replace the editable columns on a draft row; raises if `status != 'draft'`."""
-        ...
+        items_stmt = (
+            base.order_by(WorkflowVersion.version_number.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        items = list((await self._session.execute(items_stmt)).scalars().all())
+        return items, total
 
-    async def publish(self, version_id: UUID) -> None:
-        """Transition a draft to published and auto archive the previous published row (AC-16)."""
-        ...
+    async def hard_delete_version(self, version: WorkflowVersion) -> None:
+        """Remove a draft version from the table (AC-10)."""
+        await self._session.delete(version)
+        await self._session.flush()
 
-    async def archive(self, version_id: UUID) -> None:
-        """Transition a published row to archived (AC-12). Not permitted from `draft`."""
-        ...
+    async def archive_version(self, version: WorkflowVersion) -> None:
+        """Set `status='archived'` and `archived_at` on a published version (AC-12)."""
+        version.status = WorkflowVersionStatus.ARCHIVED.value
+        version.archived_at = _utcnow()
+        await self._session.flush()
+
+    async def publish_atomic(
+        self,
+        *,
+        workflow: ScrapingWorkflow,
+        draft: WorkflowVersion,
+    ) -> None:
+        """Atomically promote `draft` to `published` and archive the previous current version (AC-11).
+
+        Caller must have taken `SELECT ... FOR UPDATE` on `workflow` and
+        re-read `draft` inside that lock. This method issues the UPDATEs that
+        archive the current published row (if any), promote the draft, and
+        swap `scraping_workflows.current_version_id`. All three UPDATEs run on
+        the same session and commit together.
+        """
+        now = _utcnow()
+
+        if workflow.current_version_id is not None:
+            await self._session.execute(
+                update(WorkflowVersion)
+                .where(
+                    WorkflowVersion.id == workflow.current_version_id,
+                    WorkflowVersion.status == WorkflowVersionStatus.PUBLISHED.value,
+                )
+                .values(
+                    status=WorkflowVersionStatus.ARCHIVED.value,
+                    archived_at=now,
+                )
+            )
+
+        draft.status = WorkflowVersionStatus.PUBLISHED.value
+        draft.published_at = now
+        workflow.current_version_id = draft.id
+        await self._session.flush()

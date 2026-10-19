@@ -16,6 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 from app.api.v1.router import api_v1_router
 from app.api.v1.websites import register_website_handlers
+from app.api.v1.workflows import register_workflow_handlers
 from app.core.config import Settings, get_settings
 from app.core.database import dispose_engine
 from app.core.errors import PROBLEM_CONTENT_TYPE, Problem, register_exception_handlers
@@ -90,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_exception_handlers(app)
     register_website_handlers(app)
+    register_workflow_handlers(app)
 
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
