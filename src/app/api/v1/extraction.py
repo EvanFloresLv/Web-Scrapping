@@ -9,22 +9,20 @@ draft, published, archived), resolves `target_url` to a live
 
 Error responses are RFC 7807 Problem Details with the per-domain `code`
 and the `correlation_id` extension; the `PreviewInvalidBodyError` carries
-a `details` list naming the Pydantic field path.
+an `errors` list naming the Pydantic field path (spec 0007 AC-3).
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
-from asgi_correlation_id import correlation_id
 from fastapi import APIRouter, Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.errors import PROBLEM_CONTENT_TYPE, Problem
+from app.core.errors import ErrorDetail
 from app.domains.extraction.dependencies import get_http_fetcher
 from app.domains.extraction.errors import (
     PreviewInvalidBodyError,
@@ -68,22 +66,30 @@ async def preview_version(
     try:
         payload = PreviewRequest.model_validate_json(raw)
     except PydanticValidationError as exc:
-        details = [
-            {
-                "field": ".".join(str(loc) for loc in err["loc"]),
-                "message": err["msg"],
-            }
+        entries = [
+            ErrorDetail(
+                code=PreviewInvalidBodyError.code,
+                loc=list(err["loc"]),
+                message=err["msg"],
+                meta={"type": err["type"]},
+            )
             for err in exc.errors()
         ]
         raise PreviewInvalidBodyError(
             "preview request body is invalid",
-            details=details,
+            errors=entries,
         ) from exc
     except ValueError as exc:
-        # Malformed JSON (not shape-related). Same code; Pydantic path empty.
+        # Malformed JSON (not shape-related). Same code; empty Pydantic path.
         raise PreviewInvalidBodyError(
             "preview request body is not valid JSON",
-            details=[{"field": "", "message": str(exc)}],
+            errors=[
+                ErrorDetail(
+                    code=PreviewInvalidBodyError.code,
+                    loc=[],
+                    message=str(exc),
+                )
+            ],
         ) from exc
 
     workflow = await repo.get_live_workflow(workflow_id)
@@ -113,36 +119,15 @@ async def preview_version(
     return await service.run(version, canonical.value)
 
 
-# --- 422 Problem Details for PreviewInvalidBodyError (with `details[]`) ----
-
-
-async def _preview_invalid_body_handler(
-    request: Request,
-    exc: PreviewInvalidBodyError,
-) -> JSONResponse:
-    problem = Problem(
-        title=exc.title,
-        status=exc.status_code,
-        detail=str(exc),
-        instance=str(request.url.path),
-        code=exc.code,
-        correlation_id=correlation_id.get(),
-    )
-    body: dict[str, Any] = problem.model_dump(exclude_none=True)
-    body["details"] = exc.details
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=body,
-        media_type=PROBLEM_CONTENT_TYPE,
-    )
-
-
 def register_extraction_handlers(app: FastAPI) -> None:
-    """Register the preview endpoint's `details[]` handler (AC-16)."""
-    app.add_exception_handler(
-        PreviewInvalidBodyError,
-        _preview_invalid_body_handler,  # type: ignore[arg-type]
-    )
+    """No op since spec 0007 (AC-1, AC-3).
+
+    `PreviewInvalidBodyError` carries structured per field entries on
+    `self.errors`; the shared `PlatformError` handler renders them. Kept
+    as a hook so `app.main` can wire future extraction specific handlers
+    without reshaping the registration call list.
+    """
+    return None
 
 
 __all__ = ["register_extraction_handlers", "router"]

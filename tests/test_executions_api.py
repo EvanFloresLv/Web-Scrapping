@@ -302,7 +302,7 @@ class TestPreRunValidationPersistsNoRow:
         assert r.headers["content-type"].startswith(PROBLEM_CT)
         body = r.json()
         assert body["code"] == "execution.invalid_execute_body"
-        assert any(d["field"] == "target_url_id" for d in body["details"])
+        assert any(d["loc"] == ["target_url_id"] for d in body["errors"])
 
     async def test_workflow_with_no_current_version_409_not_runnable(
         self, api_client: AsyncClient

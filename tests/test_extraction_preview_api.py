@@ -244,8 +244,8 @@ class TestPreviewBodyShape:
         assert r.status_code == 422
         body = r.json()
         assert body["code"] == "extraction.invalid_preview_body"
-        assert body["details"]
-        assert body["details"][0]["field"].startswith("target_url")
+        assert body["errors"]
+        assert body["errors"][0]["loc"][0] == "target_url"
 
     async def test_malformed_json_returns_422(self, api_client: AsyncClient) -> None:
         workflow_id, version_id, _ = await _setup_website_workflow(api_client)

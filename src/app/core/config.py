@@ -53,6 +53,12 @@ class Settings(BaseSettings):
         default="CatalogEnrichmentBot/0.1 (+https://example.com/bot)"
     )
 
+    # Readiness probe per check timeout (spec 0007 AC-10).
+    health_ready_check_timeout_s: float = Field(
+        default=1.0,
+        description="Per check timeout for /health/ready; a check exceeding this is `fail`.",
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

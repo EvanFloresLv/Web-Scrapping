@@ -12,7 +12,6 @@ from contextlib import asynccontextmanager
 import httpx
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request, Response, status
-from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.api.v1.executions import register_execution_handlers
@@ -22,7 +21,7 @@ from app.api.v1.websites import register_website_handlers
 from app.api.v1.workflows import register_workflow_handlers
 from app.core.config import Settings, get_settings
 from app.core.database import dispose_engine
-from app.core.errors import PROBLEM_CONTENT_TYPE, Problem, register_exception_handlers
+from app.core.errors import _problem_response, register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 
 
@@ -41,17 +40,12 @@ class RequestBodySizeLimitMiddleware(BaseHTTPMiddleware):
             except ValueError:
                 size = 0
             if size > self.max_bytes:
-                problem = Problem(
+                return _problem_response(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                     title="Payload Too Large",
-                    status=status.HTTP_413_CONTENT_TOO_LARGE,
                     detail=f"Request body exceeds {self.max_bytes} bytes.",
                     code="http.413",
                     instance=str(request.url.path),
-                )
-                return JSONResponse(
-                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                    content=problem.model_dump(exclude_none=True),
-                    media_type=PROBLEM_CONTENT_TYPE,
                 )
         return await call_next(request)
 

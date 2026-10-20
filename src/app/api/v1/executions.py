@@ -13,17 +13,16 @@ return 200 with the failed body (per AC-8).
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from asgi_correlation_id import correlation_id
 from fastapi import APIRouter, Depends, FastAPI, Request
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.errors import PROBLEM_CONTENT_TYPE, Problem
+from app.core.errors import ErrorDetail
 from app.core.extraction import ExtractionPort
 from app.core.targets import TargetReadPort
 from app.core.workflows import WorkflowReadPort
@@ -135,21 +134,29 @@ async def execute_workflow(
     try:
         payload = ExecuteRequest.model_validate_json(raw)
     except PydanticValidationError as exc:
-        details = [
-            {
-                "field": ".".join(str(loc) for loc in err["loc"]),
-                "message": err["msg"],
-            }
+        entries = [
+            ErrorDetail(
+                code=InvalidExecuteBodyError.code,
+                loc=list(err["loc"]),
+                message=err["msg"],
+                meta={"type": err["type"]},
+            )
             for err in exc.errors()
         ]
         raise InvalidExecuteBodyError(
             "execute request body is invalid",
-            details=details,
+            errors=entries,
         ) from exc
     except ValueError as exc:
         raise InvalidExecuteBodyError(
             "execute request body is not valid JSON",
-            details=[{"field": "", "message": str(exc)}],
+            errors=[
+                ErrorDetail(
+                    code=InvalidExecuteBodyError.code,
+                    loc=[],
+                    message=str(exc),
+                )
+            ],
         ) from exc
 
     cid = correlation_id.get() or ""
@@ -176,36 +183,15 @@ async def get_execution(
     return _build_response(execution, workflow_id)
 
 
-# --- 422 Problem Details for InvalidExecuteBodyError (with `details[]`) ----
-
-
-async def _invalid_execute_body_handler(
-    request: Request,
-    exc: InvalidExecuteBodyError,
-) -> JSONResponse:
-    problem = Problem(
-        title=exc.title,
-        status=exc.status_code,
-        detail=str(exc),
-        instance=str(request.url.path),
-        code=exc.code,
-        correlation_id=correlation_id.get(),
-    )
-    body: dict[str, Any] = problem.model_dump(exclude_none=True)
-    body["details"] = exc.details
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=body,
-        media_type=PROBLEM_CONTENT_TYPE,
-    )
-
-
 def register_execution_handlers(app: FastAPI) -> None:
-    """Register the 422 handler that carries `details[]` (AC-11)."""
-    app.add_exception_handler(
-        InvalidExecuteBodyError,
-        _invalid_execute_body_handler,  # type: ignore[arg-type]
-    )
+    """No op since spec 0007 (AC-1, AC-3).
+
+    `InvalidExecuteBodyError` carries its structured per field entries on
+    `self.errors` now, and the shared `PlatformError` handler renders them.
+    Kept as a hook so `app.main` can wire future execution specific
+    handlers without reshaping the registration call list.
+    """
+    return None
 
 
 __all__ = ["register_execution_handlers", "router"]

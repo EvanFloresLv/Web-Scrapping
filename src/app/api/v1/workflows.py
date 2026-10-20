@@ -9,11 +9,11 @@ Mounts three REST resources:
   action endpoints `.../publish` and `.../archive`.
 
 All error responses are RFC 7807 Problem Details carrying the per domain
-`code` and the `correlation_id` extension (AC-13). Domain exceptions in
-`app.domains.workflows.errors` are routed through the shared
-`PlatformError` handler in `app.core.errors`; the one special case is
-`WorkflowValidationError`, which carries a `details` list that we render
-through a dedicated handler.
+`code` and the `correlation_id` extension (AC-13). Every domain exception
+in `app.domains.workflows.errors` routes through the shared
+`PlatformError` handler in `app.core.errors`; `WorkflowValidationError`
+carries structured per field entries on `self.errors` and the shared
+handler renders them (spec 0007 AC-3).
 """
 
 from __future__ import annotations
@@ -21,18 +21,14 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from asgi_correlation_id import correlation_id
-from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, FastAPI, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.errors import PROBLEM_CONTENT_TYPE, Problem
 from app.domains.workflows.enums import WorkflowStatus, WorkflowVersionStatus
 from app.domains.workflows.errors import (
     ImmutableFieldError,
     InvalidPaginationError,
-    WorkflowValidationError,
 )
 from app.domains.workflows.repository import WorkflowRepository
 from app.domains.workflows.schemas import (
@@ -354,33 +350,12 @@ async def archive_version(
     return WorkflowVersionRead.model_validate(version)
 
 
-# --- 422 Problem Details for WorkflowValidationError (with `details[]`) ----
-
-
-async def _workflow_validation_handler(
-    request: Request,
-    exc: WorkflowValidationError,
-) -> JSONResponse:
-    problem = Problem(
-        title=exc.title,
-        status=exc.status_code,
-        detail=str(exc),
-        instance=str(request.url.path),
-        code=exc.code,
-        correlation_id=correlation_id.get(),
-    )
-    body: dict[str, Any] = problem.model_dump(exclude_none=True)
-    body["details"] = exc.details
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=body,
-        media_type=PROBLEM_CONTENT_TYPE,
-    )
-
-
 def register_workflow_handlers(app: FastAPI) -> None:
-    """Register the one handler that needs `details[]` extension (AC-13)."""
-    app.add_exception_handler(
-        WorkflowValidationError,
-        _workflow_validation_handler,  # type: ignore[arg-type]
-    )
+    """No op since spec 0007 (AC-1, AC-3).
+
+    `WorkflowValidationError` carries structured per field entries on
+    `self.errors` now; the shared `PlatformError` handler renders them.
+    Kept as a hook so `app.main` can wire future workflow specific
+    handlers without reshaping the registration call list.
+    """
+    return None

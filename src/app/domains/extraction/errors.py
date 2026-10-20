@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import status
 
-from app.core.errors import PlatformError
+from app.core.errors import ErrorDetail, PlatformError
 from app.core.errors.execution_codes import ExtractionErrorCode, FetchErrorCode
 
 
@@ -65,8 +65,8 @@ class PreviewInvalidBodyError(PlatformError):
     """Preview request body failed Pydantic validation (AC-2).
 
     Raised when the router catches a `RequestValidationError` scoped to the
-    preview endpoint; carries the field path(s) in `details` so operators
-    can tell which key was wrong.
+    preview endpoint; carries structured per field entries in `self.errors`
+    (spec 0007 AC-3).
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -77,7 +77,6 @@ class PreviewInvalidBodyError(PlatformError):
         self,
         detail: str,
         *,
-        details: list[dict[str, Any]] | None = None,
+        errors: list[ErrorDetail] | None = None,
     ) -> None:
-        super().__init__(detail)
-        self.details = details or []
+        super().__init__(detail, errors=errors)

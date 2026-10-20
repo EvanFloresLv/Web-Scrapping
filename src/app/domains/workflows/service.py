@@ -18,6 +18,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ErrorDetail
 from app.domains.workflows.config import WorkflowConfig
 from app.domains.workflows.enums import WorkflowStatus, WorkflowVersionStatus
 from app.domains.workflows.errors import (
@@ -41,7 +42,7 @@ def _coerce_config(payload: Any) -> WorkflowConfig:
     """Validate shape + coherence of a `WorkflowConfig` payload (AC-7).
 
     Returns the validated model so callers can store a canonical form. Raises
-    `WorkflowValidationError` with a `details` list naming each bad field.
+    `WorkflowValidationError` with an `errors` list naming each bad field.
     """
     # Pydantic may hand us either a dict (API path) or an already-validated
     # `WorkflowConfig` (service callers).
@@ -51,16 +52,18 @@ def _coerce_config(payload: Any) -> WorkflowConfig:
         try:
             config = WorkflowConfig.model_validate(payload)
         except PydanticValidationError as exc:
-            details = [
-                {
-                    "field": ".".join(str(loc) for loc in err["loc"]),
-                    "message": err["msg"],
-                }
+            entries = [
+                ErrorDetail(
+                    code=WorkflowValidationError.code,
+                    loc=list(err["loc"]),
+                    message=err["msg"],
+                    meta={"type": err["type"]},
+                )
                 for err in exc.errors()
             ]
             raise WorkflowValidationError(
                 "WorkflowConfig validation failed",
-                details=details,
+                errors=entries,
             ) from exc
 
     # Coherence check (a): field name uniqueness.
@@ -69,8 +72,12 @@ def _coerce_config(payload: Any) -> WorkflowConfig:
     if duplicates:
         raise WorkflowValidationError(
             "duplicate field names",
-            details=[
-                {"field": f"fields.{name}", "message": "duplicate field name"}
+            errors=[
+                ErrorDetail(
+                    code=WorkflowValidationError.code,
+                    loc=["fields", name],
+                    message="duplicate field name",
+                )
                 for name in duplicates
             ],
         )
@@ -80,11 +87,12 @@ def _coerce_config(payload: Any) -> WorkflowConfig:
     if missing:
         raise WorkflowValidationError(
             "output_schema does not cover every field",
-            details=[
-                {
-                    "field": f"output_schema.{name}",
-                    "message": "missing key for declared field",
-                }
+            errors=[
+                ErrorDetail(
+                    code=WorkflowValidationError.code,
+                    loc=["output_schema", name],
+                    message="missing key for declared field",
+                )
                 for name in missing
             ],
         )

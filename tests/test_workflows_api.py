@@ -319,7 +319,7 @@ class TestCreateVersion:
         assert r.status_code == 422
         body = r.json()
         assert body["code"] == "workflow.validation_error"
-        assert any("title" in d["field"] for d in body["details"])
+        assert any("title" in d["loc"] for d in body["errors"])
 
     async def test_output_schema_coverage_rejected(self, api_client: AsyncClient) -> None:
         """covers: AC-7 (every field name must be in output_schema)."""
@@ -330,7 +330,7 @@ class TestCreateVersion:
         assert r.status_code == 422
         body = r.json()
         assert body["code"] == "workflow.validation_error"
-        assert any("price" in d["field"] for d in body["details"])
+        assert any("price" in d["loc"] for d in body["errors"])
 
 
 # ---------- AC-8 : list versions / get version ----------------------------
@@ -554,5 +554,5 @@ class TestProblemDetails:
         assert r.status_code == 422
         body = r.json()
         assert body["code"] == "workflow.validation_error"
-        assert isinstance(body["details"], list)
-        assert body["details"]
+        assert isinstance(body["errors"], list)
+        assert body["errors"]

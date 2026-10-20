@@ -8,28 +8,14 @@ the single source of truth.
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import status
 
-from app.core.errors import PlatformError
-from app.core.errors.execution_codes import ExecutionErrorCode, WorkflowErrorCode
-
-
-class WorkflowNotFoundError(PlatformError):
-    """Workflow id is missing or soft deleted (AC-4). Reuses the workflows code."""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    code = WorkflowErrorCode.WORKFLOW_NOT_FOUND.value
-    title = "Workflow Not Found"
-
-
-class VersionNotFoundError(PlatformError):
-    """Version id is missing, or does not belong to the workflow (AC-2)."""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    code = WorkflowErrorCode.VERSION_NOT_FOUND.value
-    title = "Version Not Found"
+from app.core.errors import ErrorDetail, PlatformError
+from app.core.errors.execution_codes import ExecutionErrorCode
+from app.core.errors.lookups import (
+    VersionNotFoundError,
+    WorkflowNotFoundError,
+)
 
 
 class WorkflowNotRunnableError(PlatformError):
@@ -67,8 +53,8 @@ class TargetNotRegisteredError(PlatformError):
 class InvalidExecuteBodyError(PlatformError):
     """Execute request body failed Pydantic validation (AC-1).
 
-    Carries the field path(s) in `details` so operators can tell which key
-    was wrong.
+    Carries structured per field entries in `self.errors`; rendered under the
+    Problem body's `errors` key by the shared handler (spec 0007 AC-3).
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -79,10 +65,9 @@ class InvalidExecuteBodyError(PlatformError):
         self,
         detail: str,
         *,
-        details: list[dict[str, Any]] | None = None,
+        errors: list[ErrorDetail] | None = None,
     ) -> None:
-        super().__init__(detail)
-        self.details = details or []
+        super().__init__(detail, errors=errors)
 
 
 class TerminalPersistFailedError(PlatformError):

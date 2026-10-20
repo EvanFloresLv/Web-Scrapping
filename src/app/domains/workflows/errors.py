@@ -9,32 +9,13 @@ from __future__ import annotations
 
 from fastapi import status
 
-from app.core.errors import PlatformError
+from app.core.errors import ErrorDetail, PlatformError
 from app.core.errors.execution_codes import WorkflowErrorCode
-
-
-class WebsiteNotFoundError(PlatformError):
-    """Parent `website_id` is missing or soft deleted (AC-2)."""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    code = WorkflowErrorCode.WEBSITE_NOT_FOUND.value
-    title = "Website Not Found"
-
-
-class WorkflowNotFoundError(PlatformError):
-    """Workflow id is missing or soft deleted (AC-3)."""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    code = WorkflowErrorCode.WORKFLOW_NOT_FOUND.value
-    title = "Workflow Not Found"
-
-
-class VersionNotFoundError(PlatformError):
-    """Version id is missing, or its workflow does not match the URL (AC-8)."""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    code = WorkflowErrorCode.VERSION_NOT_FOUND.value
-    title = "Version Not Found"
+from app.core.errors.lookups import (
+    VersionNotFoundError,
+    WebsiteNotFoundError,
+    WorkflowNotFoundError,
+)
 
 
 class WorkflowNameConflictError(PlatformError):
@@ -96,7 +77,9 @@ class WorkflowInactiveError(PlatformError):
 class WorkflowValidationError(PlatformError):
     """`WorkflowConfig` shape or coherence check failed (AC-7).
 
-    The handler reads `details` to render the Problem Details `details` array.
+    Carries the structured per field entries in `self.errors`; the shared
+    `_platform_error_handler` copies them onto the Problem body under the
+    `errors` key (spec 0007 AC-3).
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -107,10 +90,9 @@ class WorkflowValidationError(PlatformError):
         self,
         detail: str,
         *,
-        details: list[dict[str, str]] | None = None,
+        errors: list[ErrorDetail] | None = None,
     ) -> None:
-        super().__init__(detail)
-        self.details = details or []
+        super().__init__(detail, errors=errors)
 
 
 class ImmutableFieldError(PlatformError):
@@ -131,3 +113,20 @@ class InvalidPaginationError(PlatformError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     code = WorkflowErrorCode.INVALID_PAGINATION.value
     title = "Invalid Pagination"
+
+
+__all__ = [
+    "HasInFlightExecutionsError",
+    "ImmutableFieldError",
+    "InvalidPaginationError",
+    "VersionConflictError",
+    "VersionIsCurrentError",
+    "VersionNotDraftError",
+    "VersionNotFoundError",
+    "VersionNotPublishedError",
+    "WebsiteNotFoundError",
+    "WorkflowInactiveError",
+    "WorkflowNameConflictError",
+    "WorkflowNotFoundError",
+    "WorkflowValidationError",
+]

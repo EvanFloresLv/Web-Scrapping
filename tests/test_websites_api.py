@@ -71,8 +71,9 @@ class TestCreateWebsite:
         assert r.headers["content-type"] == PROBLEM_CT
         body = r.json()
         assert body["code"] == "website.duplicate"
-        assert body["existing_id"] == first["id"]
-        assert body["canonical_host"] == "example.com"
+        meta = body["errors"][0]["meta"]
+        assert meta["existing_id"] == first["id"]
+        assert meta["canonical_host"] == "example.com"
 
     async def test_display_name_empty_rejected(self, api_client: AsyncClient) -> None:
         """covers: AC-7 (field validation)."""
@@ -120,8 +121,9 @@ class TestCreateTarget:
         assert r.headers["content-type"] == PROBLEM_CT
         body = r.json()
         assert body["code"] == "website.target_duplicate"
-        assert body["existing_id"] == first["id"]
-        assert body["canonical_url"] == "https://example.com/p/1"
+        meta = body["errors"][0]["meta"]
+        assert meta["existing_id"] == first["id"]
+        assert meta["canonical_url"] == "https://example.com/p/1"
 
     async def test_host_mismatch_rejected(self, api_client: AsyncClient) -> None:
         """covers: AC-5 (host_mismatch 422)."""

@@ -18,15 +18,8 @@ from uuid import UUID
 
 from fastapi import status
 
-from app.core.errors import PlatformError
-
-
-class WebsiteNotFoundError(PlatformError):
-    """A website row is missing or soft deleted."""
-
-    status_code = status.HTTP_404_NOT_FOUND
-    code = "website.not_found"
-    title = "Website Not Found"
+from app.core.errors import ErrorDetail, PlatformError
+from app.core.errors.lookups import WebsiteNotFoundError
 
 
 class TargetNotFoundError(PlatformError):
@@ -45,7 +38,21 @@ class DuplicateWebsiteError(PlatformError):
     title = "Duplicate Website"
 
     def __init__(self, *, existing_id: UUID, canonical_host: str) -> None:
-        super().__init__(f"website with host {canonical_host!r} already exists")
+        message = f"website with host {canonical_host!r} already exists"
+        super().__init__(
+            message,
+            errors=[
+                ErrorDetail(
+                    code=self.code,
+                    loc=["host"],
+                    message=message,
+                    meta={
+                        "existing_id": str(existing_id),
+                        "canonical_host": canonical_host,
+                    },
+                )
+            ],
+        )
         self.existing_id = existing_id
         self.canonical_host = canonical_host
 
@@ -58,7 +65,21 @@ class DuplicateTargetError(PlatformError):
     title = "Duplicate Target"
 
     def __init__(self, *, existing_id: UUID, canonical_url: str) -> None:
-        super().__init__(f"target with url {canonical_url!r} already exists for this website")
+        message = f"target with url {canonical_url!r} already exists for this website"
+        super().__init__(
+            message,
+            errors=[
+                ErrorDetail(
+                    code=self.code,
+                    loc=["url"],
+                    message=message,
+                    meta={
+                        "existing_id": str(existing_id),
+                        "canonical_url": canonical_url,
+                    },
+                )
+            ],
+        )
         self.existing_id = existing_id
         self.canonical_url = canonical_url
 
@@ -112,3 +133,16 @@ class CanonicalizationError(PlatformError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     code = "website.validation_error"
     title = "Unprocessable Entity"
+
+
+__all__ = [
+    "CanonicalizationError",
+    "DuplicateTargetError",
+    "DuplicateWebsiteError",
+    "HostMismatchError",
+    "ImmutableFieldError",
+    "InvalidPaginationError",
+    "TargetNotFoundError",
+    "WebsiteInactiveError",
+    "WebsiteNotFoundError",
+]

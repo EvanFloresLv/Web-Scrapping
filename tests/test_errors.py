@@ -100,7 +100,9 @@ async def test_validation_error_returns_422_problem_with_errors_list() -> None:
     assert body["status"] == 422
     assert isinstance(body["errors"], list)
     assert body["errors"]  # at least one entry
-    assert {"loc", "msg", "type"}.issubset(body["errors"][0].keys())
+    assert {"code", "loc", "message"}.issubset(body["errors"][0].keys())
+    assert body["errors"][0]["code"] == "http.422"
+    assert body["errors"][0]["meta"]["type"]  # pydantic error type carried in meta
 
 
 @pytest.mark.asyncio

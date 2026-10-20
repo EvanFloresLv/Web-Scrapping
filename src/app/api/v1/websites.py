@@ -2,28 +2,24 @@
 
 Mounts two REST resources: `/websites` and `/websites/{id}/targets` (nested
 create + list), plus `/targets/{id}` for single-target reads and mutations.
-All error responses are RFC 7807 Problem Details with the per-domain `code`
-and the `correlation_id` extension (AC-13); the domain exceptions in
-`app.domains.websites.errors` are caught by handlers at the bottom of this
-module and translated into those responses.
+All error responses are RFC 7807 Problem Details with the per domain `code`
+and the `correlation_id` extension; the domain exceptions in
+`app.domains.websites.errors` all go through the shared `PlatformError`
+handler in `app.core.errors`, which also renders their `self.errors`
+entries verbatim (spec 0007 AC-1, AC-3).
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from asgi_correlation_id import correlation_id
-from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, FastAPI, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.errors import PROBLEM_CONTENT_TYPE, Problem
 from app.domains.websites.enums import WebsiteStatus
 from app.domains.websites.errors import (
-    DuplicateTargetError,
-    DuplicateWebsiteError,
     ImmutableFieldError,
     InvalidPaginationError,
 )
@@ -257,74 +253,13 @@ async def delete_target(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# --- 409 Problem Details with existing_id / canonical_* extension fields ---
-
-
-def _duplicate_problem(
-    *,
-    request: Request,
-    title: str,
-    code: str,
-    detail: str,
-    existing_id: UUID,
-    extension_key: str,
-    extension_value: str,
-) -> JSONResponse:
-    """Render a 409 Problem with the spec-defined extension fields (AC-4)."""
-    problem = Problem(
-        title=title,
-        status=status.HTTP_409_CONFLICT,
-        detail=detail,
-        instance=str(request.url.path),
-        code=code,
-        correlation_id=correlation_id.get(),
-    )
-    body: dict[str, Any] = problem.model_dump(exclude_none=True)
-    body["existing_id"] = str(existing_id)
-    body[extension_key] = extension_value
-    return JSONResponse(
-        status_code=status.HTTP_409_CONFLICT,
-        content=body,
-        media_type=PROBLEM_CONTENT_TYPE,
-    )
-
-
-async def _duplicate_website_handler(
-    request: Request,
-    exc: DuplicateWebsiteError,
-) -> JSONResponse:
-    return _duplicate_problem(
-        request=request,
-        title=exc.title,
-        code=exc.code,
-        detail=str(exc),
-        existing_id=exc.existing_id,
-        extension_key="canonical_host",
-        extension_value=exc.canonical_host,
-    )
-
-
-async def _duplicate_target_handler(
-    request: Request,
-    exc: DuplicateTargetError,
-) -> JSONResponse:
-    return _duplicate_problem(
-        request=request,
-        title=exc.title,
-        code=exc.code,
-        detail=str(exc),
-        existing_id=exc.existing_id,
-        extension_key="canonical_url",
-        extension_value=exc.canonical_url,
-    )
-
-
 def register_website_handlers(app: FastAPI) -> None:
-    """Register domain-specific exception handlers (AC-4).
+    """No op since spec 0007 (AC-1, AC-3).
 
-    Every other domain exception is a `PlatformError` subclass and renders
-    through the shared handler in `app.core.errors`, which picks up the
-    `code`/`status_code`/`title` from the exception class.
+    `DuplicateWebsiteError` and `DuplicateTargetError` carry their
+    `existing_id` plus canonical identifier as `meta` on a single
+    `self.errors` entry; the shared `PlatformError` handler renders them.
+    Kept as a hook so `app.main` can wire future website specific handlers
+    without reshaping the registration call list.
     """
-    app.add_exception_handler(DuplicateWebsiteError, _duplicate_website_handler)  # type: ignore[arg-type]
-    app.add_exception_handler(DuplicateTargetError, _duplicate_target_handler)  # type: ignore[arg-type]
+    return None
