@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run *)",
+      "Bash(.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8767)",
+      "Bash(curl -s -i http://127.0.0.1:8767/api/v1/health/live)",
+      "Bash(curl -s -i -H \"X-Request-ID: smoke-abc-123\" http://127.0.0.1:8767/api/v1/health/live)",
+      "Bash(curl -s -i http://127.0.0.1:8767/api/v1/does-not-exist)",
+      "Bash(.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8768)",
+      "Bash(curl -s -i http://127.0.0.1:8768/api/v1/health/live)",
+      "Bash(curl -s -i -H \"X-Request-ID: smoke-abc-123\" http://127.0.0.1:8768/api/v1/health/live)",
+      "Bash(curl -s -i http://127.0.0.1:8768/api/v1/nope)",
+      "Bash(curl -s -o /dev/null -w \"openapi: %{http_code}\\\\n\" http://127.0.0.1:8768/api/v1/openapi.json)",
+      "Bash(curl -s -o /dev/null -w \"docs: %{http_code}\\\\n\" http://127.0.0.1:8768/api/v1/docs)",
+      "Skill(architect)",
+      "Bash(docker compose *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

@@ -34,6 +34,7 @@ import app.domains.websites.models
 import app.domains.workflows.models  # noqa: F401
 from app.core.config import Settings
 from app.core.database import Base, get_session
+from app.domains.extraction.dependencies import get_http_client
 from app.main import create_app
 
 
@@ -123,16 +124,30 @@ async def api_client(
     pg_engine: AsyncEngine,
     _truncate_all: None,
 ) -> AsyncIterator[AsyncClient]:
-    """`AsyncClient` wired to the FastAPI app, each request on its own session."""
+    """`AsyncClient` wired to the FastAPI app, each request on its own session.
+
+    Also installs a real `httpx.AsyncClient` as the extraction `get_http_client`
+    override. `respx` can mock routes against this client (ASGI test runs skip
+    the app lifespan, so `app.state.http_client` is never populated by that path).
+    """
+    import httpx
+
     factory = async_sessionmaker(bind=pg_engine, expire_on_commit=False, class_=AsyncSession)
 
     async def _override() -> AsyncIterator[AsyncSession]:
         async with factory() as session:
             yield session
 
+    outbound = httpx.AsyncClient()
+
+    def _override_http_client() -> httpx.AsyncClient:
+        return outbound
+
     app = create_app(test_settings)
     app.dependency_overrides[get_session] = _override
+    app.dependency_overrides[get_http_client] = _override_http_client
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+    await outbound.aclose()

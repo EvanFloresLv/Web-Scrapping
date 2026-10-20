@@ -1,0 +1,19 @@
+{
+  "status": "completed",
+  "items": [
+    {
+      "name": "Widget A",
+      "price": "12.50",
+      "link": "https://example.com/widget-a"
+    },
+    {
+      "name": "Gadget B",
+      "price": "3.00",
+      "link": "https://example.com/gadget-b"
+    }
+  ],
+  "items_count": 2,
+  "error_code": null,
+  "error_message": null,
+  "error_details": null
+}

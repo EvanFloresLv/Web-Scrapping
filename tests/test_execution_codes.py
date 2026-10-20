@@ -30,15 +30,17 @@ def test_each_prefix_is_a_str_enum() -> None:
         assert issubclass(cls, StrEnum), f"{cls.__name__} must be a StrEnum"
 
 
-def test_shells_are_empty_for_this_slice() -> None:
-    # covers: AC-17 (concrete codes land with feature 6/7/15/17)
-    for cls in (
-        reg.FetchErrorCode,
-        reg.ExtractionErrorCode,
-        reg.ExecutionErrorCode,
-        reg.AgentErrorCode,
-    ):
-        assert len(list(cls)) == 0, f"{cls.__name__} should ship empty; got {list(cls)}"
+def test_executor_and_agent_shells_stay_empty_until_their_slices() -> None:
+    # covers: AC-17 (feature 6 populates fetch.* and extraction.*; feature 7
+    # populates execution.*; feature 15+ populate agent.*)
+    for cls in (reg.ExecutionErrorCode, reg.AgentErrorCode):
+        assert len(list(cls)) == 0, f"{cls.__name__} should still be empty; got {list(cls)}"
+
+
+def test_feature_6_codes_present() -> None:
+    # covers: spec 0005 AC-14 (feature 6 extends FetchErrorCode + ExtractionErrorCode)
+    assert reg.FetchErrorCode.TIMEOUT == "fetch.timeout"
+    assert reg.ExtractionErrorCode.NO_CONTAINER_MATCH == "extraction.no_container_match"
 
 
 def test_value_union_composes_all_four_prefixes() -> None:
@@ -58,4 +60,5 @@ def test_module_all_lists_the_public_surface() -> None:
         "ExecutionErrorCodeValue",
         "ExtractionErrorCode",
         "FetchErrorCode",
+        "WorkflowErrorCode",
     }
