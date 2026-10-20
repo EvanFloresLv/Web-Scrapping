@@ -19,7 +19,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 3 | Data model (MVP entities) | Foundation | done |
 | 4 | Website & target registration | Slice 1 (MVP) | in-progress (tested, awaiting done) |
 | 5 | Workflow configuration & versioning | Slice 1 (MVP) | in-progress |
-| 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | in-progress |
+| 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | done |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | planned |
 | 8 | Structured errors & health endpoints | Slice 1 (MVP) | planned |
 | 9 | Admin UI foundation | Slice 2 (Admin UI) | planned |
@@ -128,8 +128,8 @@ Fetch static HTML, apply configured selectors and transforms, and emit structure
   - [x] Extraction pipeline: `Extractor` with container iteration and per field selector + transform pipeline, full transform set, type coercion for `integer | decimal | boolean | url`, `OutputSchemaValidator` using `jsonschema` draft 2020-12 (satisfies AC-7, AC-8, AC-9, AC-10, AC-11)
   - [x] Service composition and preview endpoint: `ExtractionService.run(...)` gating on `pagination`, structlog events plus metrics wrapper stub, `POST /api/v1/workflows/{workflow_id}/versions/{id}/preview` with target URL resolution against `target_urls` and Problem Details error mapping (satisfies AC-1, AC-2, AC-3, AC-12, AC-15, AC-16, AC-17, AC-18)
   - [x] Fixture suite and golden file tests under `tests/fixtures/extraction/` covering every transform, every error code, and the preview endpoint's status axes (satisfies AC-19)
-- [ ] Verify it: `/check verify deterministic HTML extraction (static)`
-- [ ] Test it: `/test deterministic HTML extraction (static)`
+- [x] Verify it: `/check verify deterministic HTML extraction (static)`
+- [x] Test it: `/test deterministic HTML extraction (static)`
 Spec [0005](../specs/0005-deterministic-html-extraction/index.md) · code in `src/app/domains/extraction/` + `src/app/api/v1/extraction.py` + `src/app/core/observability/metrics.py`
 **Considerations (follow-ups left for later work):**
 - Publish-time validation of `fields[*].type` and `fields[*].transforms` against the extraction registry (spec 0005 step 1 / AC-9 / AC-10 follow-up): run-time is the backstop today; wire the registry into feature 5's `_coerce_config` once a workflow needs it.

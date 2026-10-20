@@ -1,7 +1,7 @@
 # 0005. Deterministic HTML extraction (static)
 
 **Date**: 2026-10-19
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 
