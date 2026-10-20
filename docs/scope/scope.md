@@ -122,15 +122,19 @@ Spec [0004](../specs/0004-workflow-configuration-versioning/index.md) · code in
 Fetch static HTML, apply configured selectors and transforms, and emit structured JSON matching the workflow's output schema. No LLM in the path.
 **Done when:** given a fixture page and a workflow, the extractor produces the expected structured output; missing fields, bad selectors, and empty results return structured errors.
 - [x] Design it (spec): `/architect deterministic HTML extraction (static)`
-- [ ] Build it: `/develop deterministic HTML extraction (static)`
-  - [ ] Preconditions: extend `WorkflowConfig` with `fields[*].required`, add `FetchErrorCode` + `ExtractionErrorCode` enums, add `jsonschema` and `respx` deps, add six `EXTRACTION_HTTP_*` settings (satisfies AC-4, AC-9, AC-10, AC-13, AC-14)
-  - [ ] Fetch and parse core: scaffold `src/app/domains/extraction/` + `import-linter` contract, implement `HttpFetcher` (shared lifespan `httpx.AsyncClient`, HTTP/2, timeouts, redirect cap, streamed body cap, content type gate, charset resolution), implement `HtmlParser` over selectolax (satisfies AC-1, AC-4, AC-5, AC-6)
-  - [ ] Extraction pipeline: `Extractor` with container iteration and per field selector + transform pipeline, full transform set, type coercion for `integer | decimal | boolean | url`, `OutputSchemaValidator` using `jsonschema` draft 2020-12 (satisfies AC-7, AC-8, AC-9, AC-10, AC-11)
-  - [ ] Service composition and preview endpoint: `ExtractionService.run(...)` gating on `pagination`, structlog events plus metrics wrapper stub, `POST /api/v1/workflows/{workflow_id}/versions/{id}/preview` with target URL resolution against `target_urls` and Problem Details error mapping (satisfies AC-1, AC-2, AC-3, AC-12, AC-15, AC-16, AC-17, AC-18)
-  - [ ] Fixture suite and golden file tests under `tests/fixtures/extraction/` covering every transform, every error code, and the preview endpoint's status axes (satisfies AC-19)
+- [x] Build it: `/develop deterministic HTML extraction (static)`
+  - [x] Preconditions: extend `WorkflowConfig` with `fields[*].required`, add `FetchErrorCode` + `ExtractionErrorCode` enums, add `jsonschema` and `respx` deps, add six `EXTRACTION_HTTP_*` settings (satisfies AC-4, AC-9, AC-10, AC-13, AC-14)
+  - [x] Fetch and parse core: scaffold `src/app/domains/extraction/` + `import-linter` contract, implement `HttpFetcher` (shared lifespan `httpx.AsyncClient`, HTTP/2, timeouts, redirect cap, streamed body cap, content type gate, charset resolution), implement `HtmlParser` over selectolax (satisfies AC-1, AC-4, AC-5, AC-6)
+  - [x] Extraction pipeline: `Extractor` with container iteration and per field selector + transform pipeline, full transform set, type coercion for `integer | decimal | boolean | url`, `OutputSchemaValidator` using `jsonschema` draft 2020-12 (satisfies AC-7, AC-8, AC-9, AC-10, AC-11)
+  - [x] Service composition and preview endpoint: `ExtractionService.run(...)` gating on `pagination`, structlog events plus metrics wrapper stub, `POST /api/v1/workflows/{workflow_id}/versions/{id}/preview` with target URL resolution against `target_urls` and Problem Details error mapping (satisfies AC-1, AC-2, AC-3, AC-12, AC-15, AC-16, AC-17, AC-18)
+  - [x] Fixture suite and golden file tests under `tests/fixtures/extraction/` covering every transform, every error code, and the preview endpoint's status axes (satisfies AC-19)
 - [ ] Verify it: `/check verify deterministic HTML extraction (static)`
 - [ ] Test it: `/test deterministic HTML extraction (static)`
-Spec [0005](../specs/0005-deterministic-html-extraction/index.md)
+Spec [0005](../specs/0005-deterministic-html-extraction/index.md) · code in `src/app/domains/extraction/` + `src/app/api/v1/extraction.py` + `src/app/core/observability/metrics.py`
+**Considerations (follow-ups left for later work):**
+- Publish-time validation of `fields[*].type` and `fields[*].transforms` against the extraction registry (spec 0005 step 1 / AC-9 / AC-10 follow-up): run-time is the backstop today; wire the registry into feature 5's `_coerce_config` once a workflow needs it.
+- `output_schema` double-duty: feature 5's coherence check wants every field name as a top-level key, but `jsonschema` metaschema rejects reserved keywords (`title`, `type`, ...) as top-level non-string values. Workflows avoid those field names today; capture a cleaner shape (e.g. nested `properties`) when the collision bites.
+- Pre-existing `tests/test_workflows_repository.py` references `WorkflowVersionRepository` (consolidated into `WorkflowRepository` in feature 5). The file fails to import; rewrite or delete alongside feature 7's work.
 
 ### 7. Workflow execution endpoint (sync) · needs a decision
 `POST /workflows/{id}/execute` runs a workflow against a target URL, persists an Execution record, and returns the structured result synchronously.
