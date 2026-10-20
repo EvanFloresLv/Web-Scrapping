@@ -174,6 +174,91 @@ async def test_concurrent_db_checks_do_not_collide_on_shared_session(
 
 
 @pytest.mark.asyncio
+async def test_ready_times_out_slow_db_check(pg_engine: AsyncEngine) -> None:
+    """covers: AC-10 (per check timeout honored; slow check reports fail with timeout detail)."""
+    from app.api.v1.health import _check_database
+
+    class _SlowSessionFactory:
+        """Factory whose session sleeps longer than the configured timeout."""
+
+        def __call__(self) -> _SlowSessionFactory:
+            return self
+
+        async def __aenter__(self) -> _SlowSessionFactory:
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+        async def execute(self, _stmt):  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0.5)  # 100x the test timeout below
+
+            class _R:
+                def scalar_one_or_none(self) -> int:
+                    return 1
+
+            return _R()
+
+    # Drive _check_database directly through the wait_for wrapper used in the route.
+    from app.api.v1.health import _run_with_timeout
+
+    slow = _SlowSessionFactory()
+    name, result, detail = await _run_with_timeout(
+        "database",
+        asyncio.ensure_future(_check_database(slow)),  # type: ignore[arg-type]
+        timeout_s=0.005,
+    )
+    assert name == "database"
+    assert result == "fail"
+    assert detail is not None
+    assert "timed out" in detail
+    assert "0.005" in detail
+
+
+@pytest.mark.asyncio
+async def test_ready_reports_mismatch_when_alembic_head_differs(pg_engine: AsyncEngine) -> None:
+    """covers: AC-11 (alembic row != EXPECTED_HEAD -> `mismatch`)."""
+    from sqlalchemy import text
+
+    from app.api.v1.health import _check_alembic
+
+    factory = async_sessionmaker(bind=pg_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS alembic_version "
+                "(version_num VARCHAR(32) PRIMARY KEY)"
+            )
+        )
+        await s.execute(text("DELETE FROM alembic_version"))
+        await s.execute(text("INSERT INTO alembic_version (version_num) VALUES ('stale-head')"))
+        await s.commit()
+
+    assert await _check_alembic(factory) == "mismatch"
+
+
+@pytest.mark.asyncio
+async def test_ready_reports_mismatch_when_alembic_row_missing(pg_engine: AsyncEngine) -> None:
+    """covers: AC-11 (no row counts as mismatch too)."""
+    from sqlalchemy import text
+
+    from app.api.v1.health import _check_alembic
+
+    factory = async_sessionmaker(bind=pg_engine, expire_on_commit=False)
+    async with factory() as s:
+        await s.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS alembic_version "
+                "(version_num VARCHAR(32) PRIMARY KEY)"
+            )
+        )
+        await s.execute(text("DELETE FROM alembic_version"))
+        await s.commit()
+
+    assert await _check_alembic(factory) == "mismatch"
+
+
+@pytest.mark.asyncio
 async def test_error_code_registry_lists_every_known_code(client: AsyncClient) -> None:
     """covers: AC-13 + AC-14 (unauthenticated catalogue, sorted, no duplicates)."""
     response = await client.get("/api/v1/_meta/error-codes")

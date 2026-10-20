@@ -123,3 +123,105 @@ async def test_starlette_http_exception_also_renders_as_problem() -> None:
     assert response.headers["content-type"].startswith(PROBLEM_CONTENT_TYPE)
     body = response.json()
     assert body["code"] == "http.409"
+
+
+# ---------------------------------------------------------------------------
+# Spec 0007 AC coverage
+# ---------------------------------------------------------------------------
+
+
+def test_code_pattern_regex_matches_dotted_shape_only() -> None:
+    """covers: AC-2 (code regex `^[a-z][a-z0-9_]*\\.[a-z0-9_.]+$`)."""
+    from app.core.errors import CODE_PATTERN
+
+    for ok in (
+        "fetch.timeout",
+        "workflow.version_not_found",
+        "platform.internal_error",
+        "http.422",
+        "a.b.c.d",
+    ):
+        assert CODE_PATTERN.fullmatch(ok), f"{ok!r} should pass"
+
+    for bad in (
+        "duplicate_website",  # no dot
+        "Workflow.not_found",  # uppercase
+        ".leading_dot",
+        "trailing_dot.",
+        "no_prefix",
+    ):
+        assert not CODE_PATTERN.fullmatch(bad), f"{bad!r} should fail"
+
+
+def test_assert_codes_valid_catches_bad_regex(monkeypatch: pytest.MonkeyPatch) -> None:
+    """covers: AC-2 (startup assertion raises on an invalid code shape).
+
+    Uses a stand in object instead of a real `PlatformError` subclass:
+    subclasses register permanently in `PlatformError.__subclasses__()` and
+    would poison every later test's `create_app` call.
+    """
+    from types import SimpleNamespace
+
+    from app.core import errors as errors_mod
+
+    bad = SimpleNamespace(code="no_dot_here", __module__="test", __name__="_Bad")
+    monkeypatch.setattr(errors_mod, "_all_platform_error_subclasses", lambda: [bad])
+    with pytest.raises(AssertionError, match="dotted error code shape"):
+        errors_mod._assert_codes_valid()
+
+
+def test_assert_codes_valid_catches_duplicate_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    """covers: AC-2 Key invariant (one code must map to one subclass)."""
+    from types import SimpleNamespace
+
+    from app.core import errors as errors_mod
+
+    a = SimpleNamespace(code="duplicate.code", __module__="test", __name__="_A")
+    b = SimpleNamespace(code="duplicate.code", __module__="test", __name__="_B")
+    monkeypatch.setattr(errors_mod, "_all_platform_error_subclasses", lambda: [a, b])
+    with pytest.raises(AssertionError, match="codes must be unique"):
+        errors_mod._assert_codes_valid()
+
+
+@pytest.mark.asyncio
+async def test_correlation_id_omitted_when_context_unset() -> None:
+    """covers: AC-4 (no `correlation_id` key when `asgi_correlation_id` context is empty).
+
+    The ASGI middleware normally sets the contextvar, but calling the response
+    builder directly (as a middleware or background task might) must not emit
+    `"correlation_id": null` or `"correlation_id": "None"`.
+    """
+    from app.core.errors import _problem_response
+
+    response = _problem_response(
+        status_code=500,
+        title="t",
+        detail=None,
+        code="platform.internal_error",
+        instance="/x",
+    )
+    body = response.body.decode()
+    assert '"correlation_id"' not in body
+    assert '"None"' not in body
+
+
+@pytest.mark.asyncio
+async def test_unhandled_exception_returns_500_platform_internal_error_no_detail() -> None:
+    """covers: AC-15 (fallback handler: 500, code=platform.internal_error, detail=None)."""
+    app = create_app(Settings(environment="test", log_json=False))
+
+    @app.get("/__crash")
+    async def _crash() -> None:
+        raise RuntimeError("real stack trace lives in structlog, not the body")
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.get("/__crash")
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith(PROBLEM_CONTENT_TYPE)
+    body = response.json()
+    assert body["code"] == "platform.internal_error"
+    assert body["status"] == 500
+    assert body["title"] == "Internal Server Error"
+    assert "detail" not in body, "detail must be omitted so the stack never leaks"
