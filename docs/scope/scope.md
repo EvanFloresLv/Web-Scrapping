@@ -158,7 +158,7 @@ A single error contract across the API, plus `GET /health/live` and `GET /health
   - [x] Slice A: rename bare codes to the dotted form across websites + `WorkflowErrorCode` (AC-5, AC-6)
   - [x] Slice B: extend `Problem` with `errors[]` + `checks`, refactor the shared response builder, rename `WorkflowValidationError.details` → `.errors`, add the two startup assertions, add the timeout setting (AC-1 through AC-4, AC-10, AC-15)
   - [x] Slice C: `app/core/alembic_head.py`, `app/core/startup_state.py`, rewrite `/health/*`, add `GET /api/v1/_meta/error-codes` (AC-7 through AC-14)
-- [ ] Verify it: `/check verify structured errors & health endpoints`
+- [x] Verify it: `/check verify structured errors & health endpoints`
 - [ ] Test it: `/test structured errors & health endpoints`
 Spec [0007](../specs/0007-structured-errors-and-health.md) · code in `src/app/core/{errors/,alembic_head.py,startup_state.py}` + `src/app/api/v1/{health.py,_meta/error_codes.py}` + `src/app/main.py`
 
