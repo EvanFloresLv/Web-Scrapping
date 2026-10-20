@@ -30,11 +30,28 @@ def test_each_prefix_is_a_str_enum() -> None:
         assert issubclass(cls, StrEnum), f"{cls.__name__} must be a StrEnum"
 
 
-def test_executor_and_agent_shells_stay_empty_until_their_slices() -> None:
+def test_agent_shell_stays_empty_until_its_slice() -> None:
     # covers: AC-17 (feature 6 populates fetch.* and extraction.*; feature 7
     # populates execution.*; feature 15+ populate agent.*)
-    for cls in (reg.ExecutionErrorCode, reg.AgentErrorCode):
-        assert len(list(cls)) == 0, f"{cls.__name__} should still be empty; got {list(cls)}"
+    assert (
+        len(list(reg.AgentErrorCode)) == 0
+    ), f"AgentErrorCode should still be empty; got {list(reg.AgentErrorCode)}"
+
+
+def test_feature_7_execution_codes_present() -> None:
+    # covers: spec 0006 AC-10 (feature 7 populates execution.*)
+    expected = {
+        "execution.workflow_not_runnable",
+        "execution.version_not_published",
+        "execution.version_archived",
+        "execution.target_not_registered",
+        "execution.invalid_execute_body",
+        "execution.terminal_persist_failed",
+        "execution.not_found",
+    }
+    assert {c.value for c in reg.ExecutionErrorCode} == expected
+    for code in reg.ExecutionErrorCode:
+        assert code.value.startswith("execution.")
 
 
 def test_feature_6_codes_present() -> None:

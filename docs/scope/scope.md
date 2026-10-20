@@ -20,7 +20,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 4 | Website & target registration | Slice 1 (MVP) | in-progress (tested, awaiting done) |
 | 5 | Workflow configuration & versioning | Slice 1 (MVP) | in-progress |
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | done |
-| 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | planned |
+| 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | in-progress |
 | 8 | Structured errors & health endpoints | Slice 1 (MVP) | planned |
 | 9 | Admin UI foundation | Slice 2 (Admin UI) | planned |
 | 10 | Workflow configuration screens | Slice 2 (Admin UI) | planned |
@@ -136,10 +136,19 @@ Spec [0005](../specs/0005-deterministic-html-extraction/index.md) · code in `sr
 - `output_schema` double-duty: feature 5's coherence check wants every field name as a top-level key, but `jsonschema` metaschema rejects reserved keywords (`title`, `type`, ...) as top-level non-string values. Workflows avoid those field names today; capture a cleaner shape (e.g. nested `properties`) when the collision bites.
 - Pre-existing `tests/test_workflows_repository.py` references `WorkflowVersionRepository` (consolidated into `WorkflowRepository` in feature 5). The file fails to import; rewrite or delete alongside feature 7's work.
 
-### 7. Workflow execution endpoint (sync) · needs a decision
+### 7. Workflow execution endpoint (sync)
 `POST /workflows/{id}/execute` runs a workflow against a target URL, persists an Execution record, and returns the structured result synchronously.
 **Done when:** an end-to-end request returns `completed` with data and metadata (duration, items extracted) for a fixture, and failures are persisted with status `failed` and an error reason.
-- [ ] Design it (spec): `/architect workflow execution endpoint (sync)`
+- [x] Design it (spec): `/architect workflow execution endpoint (sync)`
+- [ ] Build it: `/develop workflow execution endpoint (sync)`
+  - [x] Alembic migration for `executions` + `execution_results` per spec 0003 shape (satisfies AC-15)
+  - [x] `ExecutionErrorCode` enum + `WorkflowReadPort` cross-domain port in `app.core.workflows` (satisfies AC-10, AC-14a)
+  - [x] Concrete SQLAlchemy repositories with `selectinload` eager-load + default `with_deleted=False` filter (satisfies AC-14)
+  - [x] `ExecutionService.execute` + `.get` with two-commit lifecycle, version resolution, target scoping (satisfies AC-1 through AC-6, AC-12)
+  - [x] Router (POST execute + GET by id) + Problem Details error mapping + structlog/metrics wiring (satisfies AC-7, AC-8, AC-9, AC-11, AC-13)
+- [ ] Verify it: `/check verify workflow execution endpoint (sync)`
+- [ ] Test it: `/test workflow execution endpoint (sync)`
+Spec [0006](../specs/0006-workflow-execution-sync/index.md) · code in `src/app/domains/executions/` + `src/app/api/v1/executions.py` + `src/app/core/{workflows,targets,extraction}.py` + `src/app/domains/{workflows,websites}/read_adapter.py` + `src/app/domains/extraction/adapter.py` + `migrations/versions/202610201200_add_executions_and_execution_results.py`
 
 ### 8. Structured errors & health endpoints
 A single error contract across the API, plus `GET /health/live` and `GET /health/ready` for operators.

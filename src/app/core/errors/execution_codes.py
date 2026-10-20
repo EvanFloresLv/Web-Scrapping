@@ -53,7 +53,22 @@ class ExtractionErrorCode(StrEnum):
 
 
 class ExecutionErrorCode(StrEnum):
-    """Executor service failures. Populated by feature 7."""
+    """Executor service failures (spec 0006 AC-10).
+
+    Returned over HTTP by the sync execute and get-by-id endpoints. These
+    values are NEVER persisted on `executions.error_code`: stored failure
+    codes come from `FetchErrorCode | ExtractionErrorCode` (spec 0006 AC-10,
+    AC-5 step 2). Every code uses the `execution.*` prefix per spec 0003
+    AC-17.
+    """
+
+    WORKFLOW_NOT_RUNNABLE = "execution.workflow_not_runnable"
+    VERSION_NOT_PUBLISHED = "execution.version_not_published"
+    VERSION_ARCHIVED = "execution.version_archived"
+    TARGET_NOT_REGISTERED = "execution.target_not_registered"
+    INVALID_EXECUTE_BODY = "execution.invalid_execute_body"
+    TERMINAL_PERSIST_FAILED = "execution.terminal_persist_failed"
+    NOT_FOUND = "execution.not_found"
 
 
 class AgentErrorCode(StrEnum):
