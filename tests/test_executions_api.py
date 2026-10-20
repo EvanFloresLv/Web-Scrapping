@@ -286,7 +286,7 @@ class TestPreRunValidationPersistsNoRow:
         )
         assert r.status_code == 404
         assert r.headers["content-type"].startswith(PROBLEM_CT)
-        assert r.json()["code"] == "workflow_not_found"
+        assert r.json()["code"] == "workflow.not_found"
 
     async def test_invalid_body_returns_422_invalid_execute_body(
         self, api_client: AsyncClient

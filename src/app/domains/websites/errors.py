@@ -2,11 +2,14 @@
 
 Each exception maps 1:1 to a Problem Details response via the handlers
 registered in `app.api.v1.websites`. The stable `code` strings here are the
-`code` enum values pinned in the spec:
+dotted codes mandated by spec 0007 AC-5:
 
-- `duplicate_website`, `duplicate_target` -> 409
-- `host_mismatch`, `website_inactive`, `immutable_field`, `invalid_pagination` -> 422
-- the shared `validation_error` is handled by Pydantic / `_validation_error_handler`
+- `website.duplicate`, `website.target_duplicate` -> 409
+- `website.host_mismatch`, `website.inactive`, `website.immutable_field`,
+  `website.invalid_pagination` -> 422
+- `website.validation_error` is emitted by `CanonicalizationError`; the
+  generic Pydantic `RequestValidationError` is handled by
+  `_validation_error_handler`.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ class TargetNotFoundError(PlatformError):
     """A target_url row is missing or soft deleted."""
 
     status_code = status.HTTP_404_NOT_FOUND
-    code = "target.not_found"
+    code = "website.target_not_found"
     title = "Target Not Found"
 
 
@@ -38,7 +41,7 @@ class DuplicateWebsiteError(PlatformError):
     """Submission collides with an existing live website (same canonical host)."""
 
     status_code = status.HTTP_409_CONFLICT
-    code = "duplicate_website"
+    code = "website.duplicate"
     title = "Duplicate Website"
 
     def __init__(self, *, existing_id: UUID, canonical_host: str) -> None:
@@ -51,7 +54,7 @@ class DuplicateTargetError(PlatformError):
     """Submission collides with an existing live target under the same website."""
 
     status_code = status.HTTP_409_CONFLICT
-    code = "duplicate_target"
+    code = "website.target_duplicate"
     title = "Duplicate Target"
 
     def __init__(self, *, existing_id: UUID, canonical_url: str) -> None:
@@ -64,7 +67,7 @@ class HostMismatchError(PlatformError):
     """Target URL host does not match the parent website's host (AC-5)."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    code = "host_mismatch"
+    code = "website.host_mismatch"
     title = "Host Mismatch"
 
     def __init__(self, *, expected_host: str, actual_host: str) -> None:
@@ -79,7 +82,7 @@ class WebsiteInactiveError(PlatformError):
     """Parent website is inactive; new targets are refused (AC-6)."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    code = "website_inactive"
+    code = "website.inactive"
     title = "Website Inactive"
 
 
@@ -87,7 +90,7 @@ class ImmutableFieldError(PlatformError):
     """A PATCH tried to change an immutable field (`host`, `url`) (AC-10)."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    code = "immutable_field"
+    code = "website.immutable_field"
     title = "Immutable Field"
 
     def __init__(self, field: str) -> None:
@@ -99,7 +102,7 @@ class InvalidPaginationError(PlatformError):
     """Pagination parameters out of range (AC-7)."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    code = "invalid_pagination"
+    code = "website.invalid_pagination"
     title = "Invalid Pagination"
 
 
@@ -107,5 +110,5 @@ class CanonicalizationError(PlatformError):
     """URL or host could not be canonicalized (AC-3, AC-7)."""
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    code = "validation_error"
+    code = "website.validation_error"
     title = "Unprocessable Entity"

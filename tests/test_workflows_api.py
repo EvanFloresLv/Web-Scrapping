@@ -94,7 +94,7 @@ class TestCreateWorkflow:
             json={"name": "x"},
         )
         assert r.status_code == 404
-        assert r.json()["code"] == "website_not_found"
+        assert r.json()["code"] == "website.not_found"
 
     async def test_soft_deleted_website_returns_404(self, api_client: AsyncClient) -> None:
         """covers: AC-2 (soft deleted website is invisible)."""
@@ -164,7 +164,7 @@ class TestListWorkflow:
         """covers: AC-3 (get by id)."""
         r = await api_client.get(f"{API}/workflows/00000000-0000-0000-0000-000000000000")
         assert r.status_code == 404
-        assert r.json()["code"] == "workflow_not_found"
+        assert r.json()["code"] == "workflow.not_found"
 
 
 # ---------- AC-4 : PATCH workflow -----------------------------------------
@@ -293,7 +293,7 @@ class TestCreateVersion:
             json={"config": _config()},
         )
         assert r.status_code == 404
-        assert r.json()["code"] == "workflow_not_found"
+        assert r.json()["code"] == "workflow.not_found"
 
     async def test_config_shape_violation_422(self, api_client: AsyncClient) -> None:
         """covers: AC-7 (Pydantic shape error)."""
@@ -356,7 +356,7 @@ class TestListVersion:
         va = await _create_draft(api_client, a["id"])
         r = await api_client.get(f"{API}/workflows/{b['id']}/versions/{va['id']}")
         assert r.status_code == 404
-        assert r.json()["code"] == "version_not_found"
+        assert r.json()["code"] == "workflow.version_not_found"
 
 
 # ---------- AC-9 : PATCH draft --------------------------------------------
@@ -534,7 +534,7 @@ class TestProblemDetails:
         assert r.status_code == 404
         assert r.headers["content-type"] == PROBLEM_CT
         body = r.json()
-        assert body["code"] == "workflow_not_found"
+        assert body["code"] == "workflow.not_found"
         assert body["correlation_id"] == "corr-wf"
         assert body["title"]
         assert body["status"] == 404

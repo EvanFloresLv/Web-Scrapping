@@ -2,7 +2,7 @@
 
 Wire shapes only; the domain model stays in `models.py`. PATCH models use
 `extra='allow'` so the router can detect unknown fields and raise
-`immutable_field` with the field name, mirroring the websites domain.
+`workflow.immutable_field` with the field name, mirroring the websites domain.
 """
 
 from __future__ import annotations

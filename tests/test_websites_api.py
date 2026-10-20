@@ -70,7 +70,7 @@ class TestCreateWebsite:
         assert r.status_code == 409
         assert r.headers["content-type"] == PROBLEM_CT
         body = r.json()
-        assert body["code"] == "duplicate_website"
+        assert body["code"] == "website.duplicate"
         assert body["existing_id"] == first["id"]
         assert body["canonical_host"] == "example.com"
 
@@ -119,7 +119,7 @@ class TestCreateTarget:
         assert r.status_code == 409
         assert r.headers["content-type"] == PROBLEM_CT
         body = r.json()
-        assert body["code"] == "duplicate_target"
+        assert body["code"] == "website.target_duplicate"
         assert body["existing_id"] == first["id"]
         assert body["canonical_url"] == "https://example.com/p/1"
 
@@ -131,7 +131,7 @@ class TestCreateTarget:
             json={"url": "https://other.com/x", "label": "X"},
         )
         assert r.status_code == 422
-        assert r.json()["code"] == "host_mismatch"
+        assert r.json()["code"] == "website.host_mismatch"
 
     async def test_inactive_parent_rejects_target(self, api_client: AsyncClient) -> None:
         """covers: AC-6 (parent inactive -> 422 website_inactive)."""
@@ -143,7 +143,7 @@ class TestCreateTarget:
             json={"url": "https://example.com/p/9", "label": "x"},
         )
         assert r.status_code == 422
-        assert r.json()["code"] == "website_inactive"
+        assert r.json()["code"] == "website.inactive"
 
     async def test_soft_deleted_parent_returns_404(self, api_client: AsyncClient) -> None:
         """covers: AC-6 (parent soft-deleted -> 404)."""
@@ -241,7 +241,7 @@ class TestPatch:
         site = await _create_website(api_client)
         r = await api_client.patch(f"{API}/websites/{site['id']}", json={"host": "other.com"})
         assert r.status_code == 422
-        assert r.json()["code"] == "immutable_field"
+        assert r.json()["code"] == "website.immutable_field"
 
     async def test_patch_target_immutable_url_rejected(self, api_client: AsyncClient) -> None:
         """covers: AC-10 (url immutable)."""
@@ -251,7 +251,7 @@ class TestPatch:
             f"{API}/targets/{target['id']}", json={"url": "https://example.com/other"}
         )
         assert r.status_code == 422
-        assert r.json()["code"] == "immutable_field"
+        assert r.json()["code"] == "website.immutable_field"
 
     async def test_empty_body_patch_is_200(self, api_client: AsyncClient) -> None:
         """covers: AC-10 (empty-body PATCH returns current resource)."""
@@ -315,7 +315,7 @@ class TestProblemDetails:
         assert r.status_code == 409
         assert r.headers["content-type"] == PROBLEM_CT
         body = r.json()
-        assert body["code"] == "duplicate_website"
+        assert body["code"] == "website.duplicate"
         assert body["correlation_id"] == "corr-xyz"
 
     async def test_404_envelope_shape(self, api_client: AsyncClient) -> None:

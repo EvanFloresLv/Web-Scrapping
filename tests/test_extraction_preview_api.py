@@ -220,7 +220,7 @@ class TestPreviewLookupFailures:
             json={"target_url": "https://example.com/x"},
         )
         assert r.status_code == 404
-        assert r.json()["code"] == "workflow_not_found"
+        assert r.json()["code"] == "workflow.not_found"
 
     async def test_version_not_found(self, api_client: AsyncClient) -> None:
         """covers: AC-3."""
@@ -230,7 +230,7 @@ class TestPreviewLookupFailures:
             json={"target_url": "https://example.com/catalog/listing"},
         )
         assert r.status_code == 404
-        assert r.json()["code"] == "version_not_found"
+        assert r.json()["code"] == "workflow.version_not_found"
 
 
 class TestPreviewBodyShape:

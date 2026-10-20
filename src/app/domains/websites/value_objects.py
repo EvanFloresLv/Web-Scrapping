@@ -42,11 +42,11 @@ class ValidationError(ValueError):
     """Raised when input cannot be canonicalized into a valid host or URL.
 
     Services translate this into a Problem Details response (`422`,
-    `code=validation_error` by default; the router may override with a
-    domain-specific code when the context asks for it).
+    `code=website.validation_error` by default; the router may override
+    with a domain-specific code when the context asks for it).
     """
 
-    def __init__(self, message: str, *, code: str = "validation_error") -> None:
+    def __init__(self, message: str, *, code: str = "website.validation_error") -> None:
         super().__init__(message)
         self.code = code
 

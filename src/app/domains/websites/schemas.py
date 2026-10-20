@@ -24,7 +24,7 @@ class WebsiteCreate(BaseModel):
 
 class WebsiteUpdate(BaseModel):
     """Immutable `host` is deliberately absent; a request with `host` is
-    rejected at the router with `immutable_field` (AC-10) rather than being
+    rejected at the router with `website.immutable_field` (AC-10) rather than being
     silently dropped by `extra='forbid'`."""
 
     model_config = ConfigDict(extra="allow")

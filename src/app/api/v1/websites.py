@@ -74,7 +74,7 @@ def _validate_pagination(page: int, page_size: int) -> None:
     """Pagination bounds per spec 0001 + spec 0002 AC-7.
 
     Raised as a domain exception so the Problem response carries
-    `code=invalid_pagination`, which `_validation_error_handler` would not.
+    `code=website.invalid_pagination`, which `_validation_error_handler` would not.
     """
     if page < 1 or page_size < 1 or page_size > 200:
         raise InvalidPaginationError("page must be >= 1 and page_size must be in 1..200")
@@ -138,7 +138,7 @@ async def patch_website(
     service: Annotated[WebsiteService, Depends(_website_service)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> WebsiteRead:
-    """Patch a website (AC-10). Immutable `host` raises `immutable_field`."""
+    """Patch a website (AC-10). Immutable `host` raises `website.immutable_field`."""
     extras = payload.model_dump(exclude_unset=True)
     if "host" in extras:
         raise ImmutableFieldError("host")
@@ -233,7 +233,7 @@ async def patch_target(
     service: Annotated[TargetService, Depends(_target_service)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> TargetRead:
-    """Patch a target (AC-10). Immutable `url` raises `immutable_field`."""
+    """Patch a target (AC-10). Immutable `url` raises `website.immutable_field`."""
     extras = payload.model_dump(exclude_unset=True)
     if "url" in extras:
         raise ImmutableFieldError("url")

@@ -84,9 +84,9 @@ class WorkflowErrorCode(StrEnum):
     """
 
     # 404 lookups
-    WEBSITE_NOT_FOUND = "website_not_found"
-    WORKFLOW_NOT_FOUND = "workflow_not_found"
-    VERSION_NOT_FOUND = "version_not_found"
+    WEBSITE_NOT_FOUND = "website.not_found"
+    WORKFLOW_NOT_FOUND = "workflow.not_found"
+    VERSION_NOT_FOUND = "workflow.version_not_found"
 
     # 409 conflicts
     NAME_CONFLICT = "workflow.name_conflict"

@@ -8,7 +8,7 @@ Enforces the business invariants the DB cannot express cleanly:
 - Host match (AC-5) compares `CanonicalURL.host` with the parent website's
   `host`.
 - Parent state (AC-6): a soft-deleted website is a 404; an inactive website
-  refuses new targets with `website_inactive`.
+  refuses new targets with `website.inactive`.
 - Immutable fields (AC-10): `host` on `Website` and `url` on `TargetURL`
   cannot be patched.
 """

@@ -331,7 +331,7 @@ class WorkflowVersionService:
     ) -> WorkflowVersion:
         """Replace the `config` of a draft version (AC-9).
 
-        Parent `inactive` or soft deleted → `409 inactive` or `404 workflow_not_found`.
+        Parent `inactive` or soft deleted → `409 inactive` or `404 workflow.not_found`.
         Non draft target → `409 version_not_draft`.
         """
         workflow = await self._load_live_workflow(workflow_id)
