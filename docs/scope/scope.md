@@ -146,8 +146,8 @@ Spec [0005](../specs/0005-deterministic-html-extraction/index.md) · code in `sr
   - [x] Concrete SQLAlchemy repositories with `selectinload` eager-load + default `with_deleted=False` filter (satisfies AC-14)
   - [x] `ExecutionService.execute` + `.get` with two-commit lifecycle, version resolution, target scoping (satisfies AC-1 through AC-6, AC-12)
   - [x] Router (POST execute + GET by id) + Problem Details error mapping + structlog/metrics wiring (satisfies AC-7, AC-8, AC-9, AC-11, AC-13)
-- [ ] Verify it: `/check verify workflow execution endpoint (sync)`
-- [ ] Test it: `/test workflow execution endpoint (sync)`
+- [x] Verify it: `/check verify workflow execution endpoint (sync)`
+- [x] Test it: `/test workflow execution endpoint (sync)`
 Spec [0006](../specs/0006-workflow-execution-sync/index.md) · code in `src/app/domains/executions/` + `src/app/api/v1/executions.py` + `src/app/core/{workflows,targets,extraction}.py` + `src/app/domains/{workflows,websites}/read_adapter.py` + `src/app/domains/extraction/adapter.py` + `migrations/versions/202610201200_add_executions_and_execution_results.py`
 
 ### 8. Structured errors & health endpoints

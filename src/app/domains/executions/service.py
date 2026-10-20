@@ -127,12 +127,13 @@ class ExecutionService:
         execution.error_code = result.error_code
         execution.error_message = result.error_message
 
+        execution_id = execution.id
         try:
             await self._executions.finalise(execution)
             if result.status == "completed" and result.items:
                 rows = [
                     ExecutionResult(
-                        execution_id=execution.id,
+                        execution_id=execution_id,
                         item_index=index,
                         payload=item,
                     )
@@ -145,13 +146,13 @@ class ExecutionService:
             _log.error(
                 "execution.terminal_persist_failed",
                 correlation_id=correlation_id,
-                execution_id=str(execution.id),
+                execution_id=str(execution_id),
                 workflow_id=str(workflow.id),
                 workflow_version_id=str(version.id),
                 error=str(exc),
             )
             raise TerminalPersistFailedError(
-                f"failed to persist terminal state for execution {execution.id}"
+                f"failed to persist terminal state for execution {execution_id}"
             ) from exc
 
         duration_s = (execution.duration_ms or 0) / 1000

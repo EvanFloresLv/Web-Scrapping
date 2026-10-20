@@ -195,17 +195,11 @@ class SqlAlchemyExecutionRepository:
     async def finalise(self, execution: Execution) -> None:
         """Flush the terminal UPDATE (AC-5 step 3).
 
-        Refuses to run on a row already in a terminal state (defensive
-        assertion against double finalise). The service commits.
+        The service mutates `status`, `finished_at`, `duration_ms`,
+        `items_extracted`, and (on failure) the error columns on the in
+        memory row and then calls finalise to flush the UPDATE in one
+        statement. The service commits.
         """
-        if execution.status not in {
-            ExecutionStatus.PENDING.value,
-            ExecutionStatus.RUNNING.value,
-        }:
-            raise RuntimeError(
-                f"finalise called on execution {execution.id} already in terminal status "
-                f"{execution.status!r}"
-            )
         await self._session.flush()
 
 
