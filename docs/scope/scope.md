@@ -21,7 +21,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 5 | Workflow configuration & versioning | Slice 1 (MVP) | in-progress |
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | done |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | in-progress |
-| 8 | Structured errors & health endpoints | Slice 1 (MVP) | planned |
+| 8 | Structured errors & health endpoints | Slice 1 (MVP) | done |
 | 9 | Admin UI foundation | Slice 2 (Admin UI) | planned |
 | 10 | Workflow configuration screens | Slice 2 (Admin UI) | planned |
 | 11 | Execution browser | Slice 2 (Admin UI) | planned |
@@ -150,7 +150,7 @@ Spec [0005](../specs/0005-deterministic-html-extraction/index.md) · code in `sr
 - [x] Test it: `/test workflow execution endpoint (sync)`
 Spec [0006](../specs/0006-workflow-execution-sync/index.md) · code in `src/app/domains/executions/` + `src/app/api/v1/executions.py` + `src/app/core/{workflows,targets,extraction}.py` + `src/app/domains/{workflows,websites}/read_adapter.py` + `src/app/domains/extraction/adapter.py` + `migrations/versions/202610201200_add_executions_and_execution_results.py`
 
-### 8. Structured errors & health endpoints
+### 8. Structured errors & health endpoints · done
 A single error contract across the API, plus `GET /health/live` and `GET /health/ready` for operators.
 **Done when:** every error path returns the shared error schema (code, message, details, correlation id); readiness checks DB connectivity, Alembic head match, and startup completion.
 - [x] Design it (spec): `/architect structured errors & health endpoints`
@@ -159,7 +159,7 @@ A single error contract across the API, plus `GET /health/live` and `GET /health
   - [x] Slice B: extend `Problem` with `errors[]` + `checks`, refactor the shared response builder, rename `WorkflowValidationError.details` → `.errors`, add the two startup assertions, add the timeout setting (AC-1 through AC-4, AC-10, AC-15)
   - [x] Slice C: `app/core/alembic_head.py`, `app/core/startup_state.py`, rewrite `/health/*`, add `GET /api/v1/_meta/error-codes` (AC-7 through AC-14)
 - [x] Verify it: `/check verify structured errors & health endpoints`
-- [ ] Test it: `/test structured errors & health endpoints`
+- [x] Test it: `/test structured errors & health endpoints`
 Spec [0007](../specs/0007-structured-errors-and-health.md) · code in `src/app/core/{errors/,alembic_head.py,startup_state.py}` + `src/app/api/v1/{health.py,_meta/error_codes.py}` + `src/app/main.py`
 
 ## Slice 2: Admin UI
