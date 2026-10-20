@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from alembic.config import Config  # type: ignore[import-not-found]  # no stubs
-from alembic.script import ScriptDirectory  # type: ignore[import-not-found]  # no stubs
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 # Resolve the ini path relative to this file so the lookup works under tests,
 # containers, and `uv run` regardless of the process CWD. Layout: this file

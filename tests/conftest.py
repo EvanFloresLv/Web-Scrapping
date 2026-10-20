@@ -34,7 +34,7 @@ import app.domains.websites.models
 import app.domains.workflows.models  # noqa: F401
 from app.core.alembic_head import EXPECTED_HEAD
 from app.core.config import Settings
-from app.core.database import Base, get_session
+from app.core.database import Base, get_session, get_session_factory
 from app.core.startup_state import mark_startup_complete
 from app.domains.extraction.dependencies import get_http_client
 from app.main import create_app
@@ -69,6 +69,27 @@ async def _override_get_session() -> AsyncIterator[_StubSession]:
     yield _StubSession()
 
 
+class _StubSessionFactory:
+    """Context manager that hands out `_StubSession` instances per `__aenter__`.
+
+    Mimics the `async_sessionmaker(...)()` surface the readiness probe uses:
+    `async with factory() as session: ...`.
+    """
+
+    def __call__(self) -> _StubSessionFactory:
+        return self
+
+    async def __aenter__(self) -> _StubSession:
+        return _StubSession()
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+def _override_get_session_factory() -> _StubSessionFactory:
+    return _StubSessionFactory()
+
+
 @pytest.fixture
 def test_settings() -> Settings:
     return Settings(environment="test", log_json=False)
@@ -78,6 +99,7 @@ def test_settings() -> Settings:
 async def client(test_settings: Settings) -> AsyncIterator[AsyncClient]:
     app = create_app(test_settings)
     app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[get_session_factory] = _override_get_session_factory
     # ASGITransport skips the FastAPI lifespan, so the readiness `startup`
     # gate stays `False` under test unless we flip it here (per spec 0007 AC-12
     # the flag is per worker and is set at the end of `_lifespan`).
@@ -165,6 +187,7 @@ async def api_client(
 
     app = create_app(test_settings)
     app.dependency_overrides[get_session] = _override
+    app.dependency_overrides[get_session_factory] = _override_get_session_factory
     app.dependency_overrides[get_http_client] = _override_http_client
     mark_startup_complete()
     transport = ASGITransport(app=app)

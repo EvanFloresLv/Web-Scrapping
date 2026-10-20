@@ -22,11 +22,11 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.alembic_head import ALEMBIC_INI_PATH, EXPECTED_HEAD
 from app.core.config import Settings, get_settings
-from app.core.database import get_session
+from app.core.database import get_session_factory
 from app.core.errors import _problem_response
 from app.core.startup_state import is_startup_complete
 
@@ -52,20 +52,22 @@ async def live() -> LivePayload:
     return LivePayload()
 
 
-async def _check_database(session: AsyncSession) -> str:
+async def _check_database(factory: async_sessionmaker[AsyncSession]) -> str:
     try:
-        await session.execute(text("SELECT 1"))
+        async with factory() as session:
+            await session.execute(text("SELECT 1"))
     except Exception:
         return "fail"
     return "ok"
 
 
-async def _check_alembic(session: AsyncSession) -> str:
+async def _check_alembic(factory: async_sessionmaker[AsyncSession]) -> str:
     if EXPECTED_HEAD is None:
         return "fail"
     try:
-        result = await session.execute(text("SELECT version_num FROM alembic_version"))
-        current = result.scalar_one_or_none()
+        async with factory() as session:
+            result = await session.execute(text("SELECT version_num FROM alembic_version"))
+            current = result.scalar_one_or_none()
     except Exception:
         return "fail"
     if current is None:
@@ -95,7 +97,7 @@ async def _run_with_timeout(
 @router.get("/health/ready")
 async def ready(
     request: Request,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> JSONResponse:
     """Readiness probe (AC-8, AC-9, AC-10, AC-11, AC-12, AC-14).
@@ -103,11 +105,15 @@ async def ready(
     Runs the three checks in parallel, each bounded by
     `health_ready_check_timeout_s`; returns 200 only when every check reports
     `ok`. Otherwise returns 503 Problem Details with the per check status.
+
+    The two DB touching checks open their own `AsyncSession` from the shared
+    factory. One session per check keeps `asyncio.gather` safe (SQLAlchemy
+    forbids concurrent operations on a single `AsyncSession`).
     """
     timeout = settings.health_ready_check_timeout_s
     results = await asyncio.gather(
-        _run_with_timeout(_DB_CHECK, asyncio.ensure_future(_check_database(session)), timeout),
-        _run_with_timeout(_ALEMBIC_CHECK, asyncio.ensure_future(_check_alembic(session)), timeout),
+        _run_with_timeout(_DB_CHECK, asyncio.ensure_future(_check_database(factory)), timeout),
+        _run_with_timeout(_ALEMBIC_CHECK, asyncio.ensure_future(_check_alembic(factory)), timeout),
         _run_with_timeout(_STARTUP_CHECK, asyncio.ensure_future(_check_startup()), timeout),
     )
 

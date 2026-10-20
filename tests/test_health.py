@@ -6,13 +6,16 @@ already relied on.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.api.v1.health import _check_alembic, _check_database
 from app.core.config import Settings
-from app.core.database import get_session
+from app.core.database import get_session, get_session_factory
 from app.core.startup_state import mark_startup_complete
 from app.main import create_app
 
@@ -84,11 +87,29 @@ async def _override_exploding_session() -> AsyncIterator[_ExplodingSession]:
     yield _ExplodingSession()
 
 
+class _ExplodingSessionFactory:
+    """Factory that hands out exploding sessions (readiness probe path)."""
+
+    def __call__(self) -> _ExplodingSessionFactory:
+        return self
+
+    async def __aenter__(self) -> _ExplodingSession:
+        return _ExplodingSession()
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+def _override_exploding_session_factory() -> _ExplodingSessionFactory:
+    return _ExplodingSessionFactory()
+
+
 @pytest.mark.asyncio
 async def test_ready_returns_503_when_database_fails() -> None:
     """covers: AC-9 (DB down -> 503 + Problem Details + `database: fail`)."""
     app = create_app(Settings(environment="test", log_json=False))
     app.dependency_overrides[get_session] = _override_exploding_session
+    app.dependency_overrides[get_session_factory] = _override_exploding_session_factory
     # ASGITransport skips lifespan; flip the gate manually so the only reason
     # /health/ready returns 503 under this test is the DB failure, not the
     # startup check.
@@ -106,6 +127,50 @@ async def test_ready_returns_503_when_database_fails() -> None:
     assert body["code"] == "health.not_ready"
     assert body["checks"]["database"] == "fail"
     assert body["detail"]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_db_checks_do_not_collide_on_shared_session(
+    pg_engine: AsyncEngine,
+) -> None:
+    """Regression: `_check_database` and `_check_alembic` must open their own
+    `AsyncSession`.
+
+    Before the fix (one shared session passed into both via DI), running the
+    two checks under `asyncio.gather` triggered SQLAlchemy's
+    `InvalidRequestError: concurrent operations are not permitted` on the
+    second `execute`, which the broad `except Exception` reported as `fail`,
+    so a healthy pod answered 503. This test asserts both checks succeed when
+    driven in parallel against a real Postgres.
+    """
+    from sqlalchemy import text
+
+    from app.core.alembic_head import EXPECTED_HEAD
+
+    factory = async_sessionmaker(bind=pg_engine, expire_on_commit=False)
+    # The testcontainer schema builds from `Base.metadata.create_all` (no
+    # Alembic). Seed `alembic_version` so the alembic check has something
+    # real to read.
+    async with factory() as s:
+        await s.execute(
+            text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
+        )
+        await s.execute(text("DELETE FROM alembic_version"))
+        await s.execute(
+            text("INSERT INTO alembic_version (version_num) VALUES (:v)"), {"v": EXPECTED_HEAD}
+        )
+        await s.commit()
+
+    # Run many parallel pairs so a shared session failure cannot hide
+    # behind event loop scheduling luck.
+    results = await asyncio.gather(
+        *(_check_database(factory) for _ in range(5)),
+        *(_check_alembic(factory) for _ in range(5)),
+    )
+    assert all(r == "ok" for r in results[:5]), f"database check regressed: {results[:5]}"
+    assert all(
+        r == "ok" for r in results[5:]
+    ), f"alembic check regressed (shared session race?): {results[5:]}"
 
 
 @pytest.mark.asyncio
