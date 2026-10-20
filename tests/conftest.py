@@ -32,21 +32,37 @@ from testcontainers.postgres import PostgresContainer
 import app.domains.executions.models
 import app.domains.websites.models
 import app.domains.workflows.models  # noqa: F401
+from app.core.alembic_head import EXPECTED_HEAD
 from app.core.config import Settings
 from app.core.database import Base, get_session
+from app.core.startup_state import mark_startup_complete
 from app.domains.extraction.dependencies import get_http_client
 from app.main import create_app
 
 
 class _StubSession:
-    """Minimal async-session stand-in for the scaffold tests."""
+    """Minimal async session stand in for the scaffold tests.
 
-    async def execute(self, _stmt):  # type: ignore[no-untyped-def]
+    Supports both the `SELECT 1` liveness probe and the readiness
+    `SELECT version_num FROM alembic_version` lookup by sniffing the SQL text.
+    """
+
+    async def execute(self, stmt):  # type: ignore[no-untyped-def]
+        rendered = str(stmt)
+
         class _Result:
-            def scalar_one(self) -> int:
-                return 1
+            def __init__(self, value: int | str | None) -> None:
+                self._value = value
 
-        return _Result()
+            def scalar_one(self):  # type: ignore[no-untyped-def]
+                return self._value
+
+            def scalar_one_or_none(self):  # type: ignore[no-untyped-def]
+                return self._value
+
+        if "alembic_version" in rendered:
+            return _Result(EXPECTED_HEAD)
+        return _Result(1)
 
 
 async def _override_get_session() -> AsyncIterator[_StubSession]:
@@ -62,6 +78,10 @@ def test_settings() -> Settings:
 async def client(test_settings: Settings) -> AsyncIterator[AsyncClient]:
     app = create_app(test_settings)
     app.dependency_overrides[get_session] = _override_get_session
+    # ASGITransport skips the FastAPI lifespan, so the readiness `startup`
+    # gate stays `False` under test unless we flip it here (per spec 0007 AC-12
+    # the flag is per worker and is set at the end of `_lifespan`).
+    mark_startup_complete()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -146,6 +166,7 @@ async def api_client(
     app = create_app(test_settings)
     app.dependency_overrides[get_session] = _override
     app.dependency_overrides[get_http_client] = _override_http_client
+    mark_startup_complete()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

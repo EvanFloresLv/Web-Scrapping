@@ -230,6 +230,7 @@ __all__ = [
     "ErrorDetail",
     "PlatformError",
     "Problem",
+    "_all_platform_error_subclasses",
     "_problem_response",
     "register_exception_handlers",
 ]

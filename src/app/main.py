@@ -23,6 +23,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import dispose_engine
 from app.core.errors import _problem_response, register_exception_handlers
 from app.core.logging import configure_logging, get_logger
+from app.core.startup_state import mark_startup_complete, reset_for_tests
 
 
 class RequestBodySizeLimitMiddleware(BaseHTTPMiddleware):
@@ -64,6 +65,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.http_client = http_client
 
+    # Spec 0007 AC-12: `/health/ready` reports `startup: ok` only after this
+    # flag flips. Set as the last step before yielding so a probe landing
+    # mid startup still reads `fail`.
+    mark_startup_complete()
+
     try:
         yield
     finally:
@@ -76,6 +82,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the FastAPI app. Call this from entrypoints (uvicorn, tests)."""
     settings = settings or get_settings()
     configure_logging(settings)
+    # Each `create_app` call represents a fresh process (tests spin many); reset
+    # the per worker startup gate so the next `_lifespan` enters it as False.
+    reset_for_tests()
 
     app = FastAPI(
         title=settings.app_name,
