@@ -183,12 +183,12 @@ Spec [0008](../specs/0008-admin-ui-foundation/index.md)
 UI to register websites and targets, create and edit workflow versions, and preview extraction output on a sample URL.
 **Done when:** a user can create a workflow end-to-end from the UI and run a preview that returns the extracted sample.
 - [x] Design it (spec): `/architect workflow configuration screens`
-- [ ] Build it: `/develop workflow configuration screens`
+- [x] Build it: `/develop workflow configuration screens`
   - [x] Websites + Targets CRUD screens with shared list/Sheet/search-param primitives (satisfies AC-1, AC-2, AC-3, AC-4, AC-19, AC-20)
   - [x] Workflows list, create, and detail page with Overview tab + optimistic status toggle (satisfies AC-5, AC-6, AC-7, AC-8)
   - [x] Versions tab + Publish/Archive/Delete lifecycle actions with every 409 handler (satisfies AC-9, AC-14, AC-15, AC-16)
   - [x] Version editor route (/versions/new + /versions/:vid) with structured fields form + CodeMirror panes + full-config Save (satisfies AC-10, AC-11, AC-12, AC-13)
-  - [ ] Preview panel, end-to-end Playwright smoke, Vitest coverage of 409/empty/dirty gates (satisfies AC-17, AC-18)
+  - [x] Preview panel, end-to-end Playwright smoke, Vitest coverage of 409/empty/dirty gates (satisfies AC-17, AC-18)
 - [ ] Verify it: `/check verify workflow configuration screens`
 - [ ] Test it: `/test workflow configuration screens`
 Spec [0009](../specs/0009-workflow-configuration-screens/index.md) · code in `frontend/src/`

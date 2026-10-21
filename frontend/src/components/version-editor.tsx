@@ -1,5 +1,5 @@
 import { json as cmJson } from '@codemirror/lang-json'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import CodeMirror from '@uiw/react-codemirror'
 import { Plus, Save, Trash2 } from 'lucide-react'
@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 
 import { queryKeys } from '@/api/queryKeys'
 import type { components } from '@/api/schema'
+import { PreviewPanel } from '@/components/preview-panel'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils'
 
 type WorkflowVersionRead = components['schemas']['WorkflowVersionRead']
 type WorkflowConfig = components['schemas']['WorkflowConfig']
+type WorkflowRead = components['schemas']['WorkflowRead']
 
 /**
  * Version editor shared by `/versions/new` and `/versions/:vid` (spec 0009 M5,
@@ -139,6 +141,15 @@ export function VersionEditor({ mode }: { mode: SaveMode }) {
   } = form
 
   const fieldsArray = useFieldArray({ control, name: 'config.fields' })
+
+  // Parent workflow powers the Preview panel's target picker: it reads the
+  // workflow's `website_id` from here (spec 0009 AC-17).
+  const workflow = useQuery<WorkflowRead, ApiError>({
+    queryKey: queryKeys.workflows.detail(mode.workflowId),
+    queryFn: ({ signal }) =>
+      apiFetch<WorkflowRead>(`/api/v1/workflows/${mode.workflowId}`, { signal, silent: true }),
+    retry: false,
+  })
 
   // Reset when switching to another version row (edit mode) so the editor
   // re-seeds without a stale dirty flag.
@@ -573,10 +584,13 @@ export function VersionEditor({ mode }: { mode: SaveMode }) {
 
         <section className="flex min-h-0 flex-col gap-3 overflow-y-auto p-6">
           <h3 className="text-sm font-semibold">Preview</h3>
-          <p className="text-sm text-muted-foreground">
-            The preview panel lands in milestone 6. Save your draft here; preview will run against
-            the server stored config.
-          </p>
+          <PreviewPanel
+            workflowId={mode.workflowId}
+            versionId={mode.kind === 'edit' ? mode.version.id : undefined}
+            websiteId={workflow.data?.website_id}
+            outputSchemaText={outputSchemaText}
+            isDirty={isDirty}
+          />
         </section>
       </div>
 
