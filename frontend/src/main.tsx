@@ -1,22 +1,22 @@
 import './styles.css'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-// Placeholder bootstrap. M3 replaces this with the TanStack Router + Query setup.
+import { router } from '@/router'
+
 const root = document.getElementById('root')
 if (!root) {
   throw new Error('root element missing')
 }
 
+const queryClient = router.options.context.queryClient
+
 createRoot(root).render(
   <StrictMode>
-    <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">Scraping Platform Admin</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Scaffold ready. Milestone 3 wires the shell.
-        </p>
-      </div>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   </StrictMode>,
 )

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build && tsc --noEmit",
     "preview": "vite preview",
     "lint": "biome check --error-on-warnings",
     "lint:fix": "biome check --fix",
