@@ -23,7 +23,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | in-progress |
 | 8 | Structured errors & health endpoints | Slice 1 (MVP) | done |
 | 9 | Admin UI foundation | Slice 2 (Admin UI) | in-progress |
-| 10 | Workflow configuration screens | Slice 2 (Admin UI) | planned |
+| 10 | Workflow configuration screens | Slice 2 (Admin UI) | in-progress |
 | 11 | Execution browser | Slice 2 (Admin UI) | planned |
 | 12 | Structured logging & correlation | Slice 3 (Observability) | planned |
 | 13 | Metrics & operational dashboard | Slice 3 (Observability) | planned |
@@ -179,10 +179,19 @@ Pick the UI stack and ship a minimal shell (navigation, auth-aware layout, desig
 - [x] Test it: `/test admin UI foundation`
 Spec [0008](../specs/0008-admin-ui-foundation/index.md)
 
-### 10. Workflow configuration screens · needs a decision
+### 10. Workflow configuration screens
 UI to register websites and targets, create and edit workflow versions, and preview extraction output on a sample URL.
 **Done when:** a user can create a workflow end-to-end from the UI and run a preview that returns the extracted sample.
-- [ ] Design it (spec): `/architect workflow configuration screens`
+- [x] Design it (spec): `/architect workflow configuration screens`
+- [ ] Build it: `/develop workflow configuration screens`
+  - [ ] Websites + Targets CRUD screens with shared list/Sheet/search-param primitives (satisfies AC-1, AC-2, AC-3, AC-4, AC-19, AC-20)
+  - [ ] Workflows list, create, and detail page with Overview tab + optimistic status toggle (satisfies AC-5, AC-6, AC-7, AC-8)
+  - [ ] Versions tab + Publish/Archive/Delete lifecycle actions with every 409 handler (satisfies AC-9, AC-14, AC-15, AC-16)
+  - [ ] Version editor route (/versions/new + /versions/:vid) with structured fields form + CodeMirror panes + full-config Save (satisfies AC-10, AC-11, AC-12, AC-13)
+  - [ ] Preview panel, end-to-end Playwright smoke, Vitest coverage of 409/empty/dirty gates (satisfies AC-17, AC-18)
+- [ ] Verify it: `/check verify workflow configuration screens`
+- [ ] Test it: `/test workflow configuration screens`
+Spec [0009](../specs/0009-workflow-configuration-screens/index.md) · code in `frontend/src/`
 
 ### 11. Execution browser · needs a decision
 Browse executions with filters (workflow, status, time range), open a run to see its input, output, errors, and timings.
