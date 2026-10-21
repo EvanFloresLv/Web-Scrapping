@@ -31,3 +31,11 @@ postgres_data/
 
 # Agent workflow caches
 docs/.agent-cache/
+
+# Frontend (spec 0008)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/playwright-report/
+frontend/test-results/
+frontend/coverage/
