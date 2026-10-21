@@ -186,7 +186,7 @@ UI to register websites and targets, create and edit workflow versions, and prev
 - [ ] Build it: `/develop workflow configuration screens`
   - [x] Websites + Targets CRUD screens with shared list/Sheet/search-param primitives (satisfies AC-1, AC-2, AC-3, AC-4, AC-19, AC-20)
   - [x] Workflows list, create, and detail page with Overview tab + optimistic status toggle (satisfies AC-5, AC-6, AC-7, AC-8)
-  - [ ] Versions tab + Publish/Archive/Delete lifecycle actions with every 409 handler (satisfies AC-9, AC-14, AC-15, AC-16)
+  - [x] Versions tab + Publish/Archive/Delete lifecycle actions with every 409 handler (satisfies AC-9, AC-14, AC-15, AC-16)
   - [ ] Version editor route (/versions/new + /versions/:vid) with structured fields form + CodeMirror panes + full-config Save (satisfies AC-10, AC-11, AC-12, AC-13)
   - [ ] Preview panel, end-to-end Playwright smoke, Vitest coverage of 409/empty/dirty gates (satisfies AC-17, AC-18)
 - [ ] Verify it: `/check verify workflow configuration screens`

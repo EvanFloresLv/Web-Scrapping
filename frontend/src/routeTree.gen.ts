@@ -22,6 +22,7 @@ import { Route as AuthedWorkflowsWorkflowIdIndexRouteImport } from './routes/_au
 import { Route as AuthedWorkflowsWorkflowIdOverviewRouteImport } from './routes/_authed.workflows_.$workflowId.overview'
 import { Route as AuthedWorkflowsWorkflowIdPreviewRouteImport } from './routes/_authed.workflows_.$workflowId.preview'
 import { Route as AuthedWorkflowsWorkflowIdVersionsRouteImport } from './routes/_authed.workflows_.$workflowId.versions'
+import { Route as AuthedWorkflowsWorkflowIdVersionsNewRouteImport } from './routes/_authed.workflows_.$workflowId.versions_.new'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -92,6 +93,12 @@ const AuthedWorkflowsWorkflowIdVersionsRoute =
     path: '/versions',
     getParentRoute: () => AuthedWorkflowsWorkflowIdRoute,
   } as any)
+const AuthedWorkflowsWorkflowIdVersionsNewRoute =
+  AuthedWorkflowsWorkflowIdVersionsNewRouteImport.update({
+    id: '/versions_/new',
+    path: '/versions/new',
+    getParentRoute: () => AuthedWorkflowsWorkflowIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/workflows/$workflowId/preview': typeof AuthedWorkflowsWorkflowIdPreviewRoute
   '/workflows/$workflowId/versions': typeof AuthedWorkflowsWorkflowIdVersionsRoute
   '/workflows/$workflowId/': typeof AuthedWorkflowsWorkflowIdIndexRoute
+  '/workflows/$workflowId/versions/new': typeof AuthedWorkflowsWorkflowIdVersionsNewRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -119,6 +127,7 @@ export interface FileRoutesByTo {
   '/workflows/$workflowId/preview': typeof AuthedWorkflowsWorkflowIdPreviewRoute
   '/workflows/$workflowId/versions': typeof AuthedWorkflowsWorkflowIdVersionsRoute
   '/workflows/$workflowId': typeof AuthedWorkflowsWorkflowIdIndexRoute
+  '/workflows/$workflowId/versions/new': typeof AuthedWorkflowsWorkflowIdVersionsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -135,6 +144,7 @@ export interface FileRoutesById {
   '/_authed/workflows_/$workflowId/preview': typeof AuthedWorkflowsWorkflowIdPreviewRoute
   '/_authed/workflows_/$workflowId/versions': typeof AuthedWorkflowsWorkflowIdVersionsRoute
   '/_authed/workflows_/$workflowId/': typeof AuthedWorkflowsWorkflowIdIndexRoute
+  '/_authed/workflows_/$workflowId/versions_/new': typeof AuthedWorkflowsWorkflowIdVersionsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/workflows/$workflowId/preview'
     | '/workflows/$workflowId/versions'
     | '/workflows/$workflowId/'
+    | '/workflows/$workflowId/versions/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/workflows/$workflowId/preview'
     | '/workflows/$workflowId/versions'
     | '/workflows/$workflowId'
+    | '/workflows/$workflowId/versions/new'
   id:
     | '__root__'
     | '/_authed'
@@ -179,6 +191,7 @@ export interface FileRouteTypes {
     | '/_authed/workflows_/$workflowId/preview'
     | '/_authed/workflows_/$workflowId/versions'
     | '/_authed/workflows_/$workflowId/'
+    | '/_authed/workflows_/$workflowId/versions_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -279,6 +292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedWorkflowsWorkflowIdVersionsRouteImport
       parentRoute: typeof AuthedWorkflowsWorkflowIdRoute
     }
+    '/_authed/workflows_/$workflowId/versions_/new': {
+      id: '/_authed/workflows_/$workflowId/versions_/new'
+      path: '/versions/new'
+      fullPath: '/workflows/$workflowId/versions/new'
+      preLoaderRoute: typeof AuthedWorkflowsWorkflowIdVersionsNewRouteImport
+      parentRoute: typeof AuthedWorkflowsWorkflowIdRoute
+    }
   }
 }
 
@@ -287,6 +307,7 @@ interface AuthedWorkflowsWorkflowIdRouteChildren {
   AuthedWorkflowsWorkflowIdPreviewRoute: typeof AuthedWorkflowsWorkflowIdPreviewRoute
   AuthedWorkflowsWorkflowIdVersionsRoute: typeof AuthedWorkflowsWorkflowIdVersionsRoute
   AuthedWorkflowsWorkflowIdIndexRoute: typeof AuthedWorkflowsWorkflowIdIndexRoute
+  AuthedWorkflowsWorkflowIdVersionsNewRoute: typeof AuthedWorkflowsWorkflowIdVersionsNewRoute
 }
 
 const AuthedWorkflowsWorkflowIdRouteChildren: AuthedWorkflowsWorkflowIdRouteChildren =
@@ -298,6 +319,8 @@ const AuthedWorkflowsWorkflowIdRouteChildren: AuthedWorkflowsWorkflowIdRouteChil
     AuthedWorkflowsWorkflowIdVersionsRoute:
       AuthedWorkflowsWorkflowIdVersionsRoute,
     AuthedWorkflowsWorkflowIdIndexRoute: AuthedWorkflowsWorkflowIdIndexRoute,
+    AuthedWorkflowsWorkflowIdVersionsNewRoute:
+      AuthedWorkflowsWorkflowIdVersionsNewRoute,
   }
 
 const AuthedWorkflowsWorkflowIdRouteWithChildren =
