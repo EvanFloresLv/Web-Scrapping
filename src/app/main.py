@@ -14,6 +14,7 @@ from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from app.api.spa import mount_spa_router
 from app.api.v1.executions import register_execution_handlers
 from app.api.v1.extraction import register_extraction_handlers
 from app.api.v1.router import api_v1_router
@@ -143,6 +144,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_execution_handlers(app)
 
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+
+    # Spec 0008 AC-10: SPA mount registered LAST so it never shadows a
+    # backend route; no op unless `SERVE_ADMIN_UI` is true and the built
+    # SPA is on disk.
+    mount_spa_router(app, settings)
 
     return app
 
