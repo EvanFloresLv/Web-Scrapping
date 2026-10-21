@@ -39,3 +39,7 @@ frontend/.vite/
 frontend/playwright-report/
 frontend/test-results/
 frontend/coverage/
+
+# Verification artifacts (local; do not commit)
+.playwright-mcp/
+verify-*.png

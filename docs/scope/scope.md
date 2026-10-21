@@ -176,7 +176,7 @@ Pick the UI stack and ship a minimal shell (navigation, auth-aware layout, desig
   - [x] Screens + placeholders: `/websites` wired to `GET /api/v1/websites` via TanStack Query (columns derived from the generated OpenAPI types, empty state card when no rows); `/targets` renders the empty state card today (backend has no top-level `/api/v1/targets` yet, deviation noted); `/workflows` and `/executions` static placeholders (AC-6, AC-7). Route error boundary on `__root` renders `ApiError.code` / `.title` / `.detail` / `.correlation_id`.
   - [x] Tests, pre-commit, production serve: Vitest + Testing Library (5 unit tests across `apiFetch` and the Websites screen empty state) + Playwright chromium smoke (sign in → `/websites` → theme toggle → sign out → back on `/login`, with `page.route` redacting `X-API-Key` from traces); lint-staged bridged via the Python pre-commit `local` hook `frontend-lint-staged`; FastAPI SPA router mounted LAST in `create_app` behind `SERVE_ADMIN_UI` with reserved-prefix fallthrough (`/api/`, `/health/`, `/docs`, `/redoc`, `/openapi.json`, `/assets/`), `Accept: text/html` gate, dedicated `/assets/` `StaticFiles` mount; README documents corepack + Node 22 setup. Satisfies AC-10, AC-11, AC-12, AC-13, AC-18 frontend half.
 - [x] Verify it: `/check verify admin UI foundation`
-- [ ] Test it: `/test admin UI foundation`
+- [x] Test it: `/test admin UI foundation`
 Spec [0008](../specs/0008-admin-ui-foundation/index.md)
 
 ### 10. Workflow configuration screens · needs a decision
