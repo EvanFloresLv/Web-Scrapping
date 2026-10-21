@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Archive, FilePlus2, Send, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -127,7 +127,13 @@ function VersionsTab() {
       header: 'Version',
       cell: (row) => (
         <span className="font-medium">
-          v{row.version_number}
+          <Link
+            to="/workflows/$workflowId/versions/$versionId"
+            params={{ workflowId, versionId: row.id }}
+            className="text-primary hover:underline"
+          >
+            v{row.version_number}
+          </Link>
           {currentVersionId === row.id ? (
             <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
               current
