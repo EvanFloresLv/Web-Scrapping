@@ -1,5 +1,6 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import { AppShell } from '@/components/app-shell'
 import { useAuthStore } from '@/stores/auth'
 
 /**
@@ -29,8 +30,5 @@ export const Route = createFileRoute('/_authed')({
 })
 
 function AuthedShell() {
-  // The real `AppShell` (sidebar + header + sign out) lands in M4; for M3
-  // we render the Outlet raw so the protected gate itself can be verified
-  // in isolation. The import graph intentionally stays small here.
-  return <Outlet />
+  return <AppShell />
 }

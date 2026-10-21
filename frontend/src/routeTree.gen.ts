@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
+import { Route as AuthedExecutionsRouteImport } from './routes/_authed.executions'
+import { Route as AuthedTargetsRouteImport } from './routes/_authed.targets'
 import { Route as AuthedWebsitesRouteImport } from './routes/_authed.websites'
+import { Route as AuthedWorkflowsRouteImport } from './routes/_authed.workflows'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -28,35 +31,68 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedExecutionsRoute = AuthedExecutionsRouteImport.update({
+  id: '/executions',
+  path: '/executions',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTargetsRoute = AuthedTargetsRouteImport.update({
+  id: '/targets',
+  path: '/targets',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedWebsitesRoute = AuthedWebsitesRouteImport.update({
   id: '/websites',
   path: '/websites',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedWorkflowsRoute = AuthedWorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
   getParentRoute: () => AuthedRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/executions': typeof AuthedExecutionsRoute
+  '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
+  '/workflows': typeof AuthedWorkflowsRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/executions': typeof AuthedExecutionsRoute
+  '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
+  '/workflows': typeof AuthedWorkflowsRoute
   '/': typeof AuthedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/executions': typeof AuthedExecutionsRoute
+  '/_authed/targets': typeof AuthedTargetsRoute
   '/_authed/websites': typeof AuthedWebsitesRoute
+  '/_authed/workflows': typeof AuthedWorkflowsRoute
   '/_authed/': typeof AuthedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/websites'
+  fullPaths:
+    '/' | '/login' | '/executions' | '/targets' | '/websites' | '/workflows'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/websites' | '/'
-  id: '__root__' | '/_authed' | '/login' | '/_authed/websites' | '/_authed/'
+  to: '/login' | '/executions' | '/targets' | '/websites' | '/workflows' | '/'
+  id:
+    | '__root__'
+    | '/_authed'
+    | '/login'
+    | '/_authed/executions'
+    | '/_authed/targets'
+    | '/_authed/websites'
+    | '/_authed/workflows'
+    | '/_authed/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -87,6 +123,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/executions': {
+      id: '/_authed/executions'
+      path: '/executions'
+      fullPath: '/executions'
+      preLoaderRoute: typeof AuthedExecutionsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/targets': {
+      id: '/_authed/targets'
+      path: '/targets'
+      fullPath: '/targets'
+      preLoaderRoute: typeof AuthedTargetsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/websites': {
       id: '/_authed/websites'
       path: '/websites'
@@ -94,16 +144,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedWebsitesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/workflows': {
+      id: '/_authed/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof AuthedWorkflowsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
+  AuthedExecutionsRoute: typeof AuthedExecutionsRoute
+  AuthedTargetsRoute: typeof AuthedTargetsRoute
   AuthedWebsitesRoute: typeof AuthedWebsitesRoute
+  AuthedWorkflowsRoute: typeof AuthedWorkflowsRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedExecutionsRoute: AuthedExecutionsRoute,
+  AuthedTargetsRoute: AuthedTargetsRoute,
   AuthedWebsitesRoute: AuthedWebsitesRoute,
+  AuthedWorkflowsRoute: AuthedWorkflowsRoute,
   AuthedIndexRoute: AuthedIndexRoute,
 }
 
