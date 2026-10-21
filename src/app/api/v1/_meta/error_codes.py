@@ -20,6 +20,7 @@ from enum import Enum
 from fastapi import APIRouter, status
 from pydantic import BaseModel
 
+from app.core.auth import AdminUIUnauthenticated  # noqa: F401 (register subclass pre snapshot)
 from app.core.errors import PlatformError, _all_platform_error_subclasses
 from app.core.errors.execution_codes import (
     AgentErrorCode,

@@ -22,7 +22,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | done |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | in-progress |
 | 8 | Structured errors & health endpoints | Slice 1 (MVP) | done |
-| 9 | Admin UI foundation | Slice 2 (Admin UI) | planned |
+| 9 | Admin UI foundation | Slice 2 (Admin UI) | in-progress |
 | 10 | Workflow configuration screens | Slice 2 (Admin UI) | planned |
 | 11 | Execution browser | Slice 2 (Admin UI) | planned |
 | 12 | Structured logging & correlation | Slice 3 (Observability) | planned |
@@ -164,10 +164,19 @@ Spec [0007](../specs/0007-structured-errors-and-health.md) · code in `src/app/c
 
 ## Slice 2: Admin UI
 
-### 9. Admin UI foundation · needs a decision
+### 9. Admin UI foundation
 Pick the UI stack and ship a minimal shell (navigation, auth-aware layout, design primitives) that later screens plug into.
 **Done when:** the UI boots locally, authenticates against the API (even with a dev key), and renders empty-state screens for workflows and executions.
-- [ ] Design it (spec): `/architect admin UI foundation`
+- [x] Design it (spec): `/architect admin UI foundation`
+- [ ] Build it: `/develop admin UI foundation`
+  - [x] Backend auth stub + config + log redaction: `require_api_key` dependency, `ADMIN_API_KEY` / `SERVE_ADMIN_UI` / `ADMIN_UI_DIST_PATH` settings, `AdminUIUnauthenticated` error, startup assertion, structlog header deny list (satisfies AC-9, AC-18 backend half)
+  - [ ] Frontend scaffold + bootstrap: `frontend/` with Vite + React 19 + TS 7 strict + Biome + Husky + lint-staged + Tailwind 4 + shadcn init, Vite proxy covering `/api` + `/health` + `/docs` + `/redoc` + `/openapi.json`, pinned `pnpm@10.13.0`, Node LTS 22, README corepack setup (satisfies AC-1, AC-11, AC-13, AC-15, AC-17)
+  - [ ] API client, Problem Details, auth shell: `pnpm gen:api` → `schema.d.ts`, shared `apiFetch` wrapper (X-API-Key injection + Problem Details parsing + RHF `errors[].loc` → `setError` + gated single-shot 401 redirect), synchronous Zustand `authStore` with `isHydrated`, `/login` with pre-store probe + inline rejection, TanStack Router protected `beforeLoad` + whitelisted `redirect` param (satisfies AC-2, AC-3, AC-4, AC-8, AC-16, AC-19)
+  - [ ] Layout, theme, shell screens: AppShell (sidebar + header), shadcn primitives, `themeStore` + ThemeProvider (light/dark/system), sign out, `/websites` + `/targets` wired to real endpoints via generated types, `/workflows` + `/executions` placeholders, route error boundary (satisfies AC-5, AC-6, AC-7, AC-14)
+  - [ ] Tests, pre-commit, production serve: Vitest + Testing Library + Playwright smoke (with trace redaction), Husky pre-commit (lint-staged + `biome check --fix`), FastAPI SPA router behind `SERVE_ADMIN_UI` (reserved-prefix 404s + `Accept: text/html` gate + dedicated `/assets/` mount), README (satisfies AC-10, AC-11, AC-12, AC-13, AC-18 frontend half)
+- [ ] Verify it: `/check verify admin UI foundation`
+- [ ] Test it: `/test admin UI foundation`
+Spec [0008](../specs/0008-admin-ui-foundation/index.md)
 
 ### 10. Workflow configuration screens · needs a decision
 UI to register websites and targets, create and edit workflow versions, and preview extraction output on a sample URL.

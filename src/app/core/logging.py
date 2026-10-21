@@ -67,3 +67,33 @@ def configure_logging(settings: Settings) -> None:
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     logger: structlog.stdlib.BoundLogger = structlog.get_logger(name)
     return logger
+
+
+# Spec 0008 AC-18: header deny list. Any header name (lower cased) in this
+# frozenset is replaced with the sentinel `"<redacted>"` before a request or
+# response log event is serialised, so a captured admin API key or bearer
+# token can never land in logs. Keep names lower cased (HTTP headers are
+# case insensitive; the middleware normalises on read).
+SENSITIVE_REQUEST_HEADERS: frozenset[str] = frozenset(
+    {
+        "x-api-key",
+        "authorization",
+    }
+)
+
+
+def redact_headers(headers: dict[str, str] | list[tuple[str, str]]) -> dict[str, str]:
+    """Return a shallow copy of `headers` with sensitive values redacted.
+
+    Accepts either a mapping or a list of pairs (ASGI's native shape). Header
+    name comparison is case insensitive; the output always lower cases keys
+    so downstream log consumers get a stable shape.
+    """
+    pairs: list[tuple[str, str]] = (
+        list(headers.items()) if isinstance(headers, dict) else list(headers)
+    )
+    out: dict[str, str] = {}
+    for name, value in pairs:
+        key = name.lower()
+        out[key] = "<redacted>" if key in SENSITIVE_REQUEST_HEADERS else value
+    return out
