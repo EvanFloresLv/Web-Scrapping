@@ -3,12 +3,11 @@ import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
- * covers: AC-7
+ * covers: AC-7 (remaining placeholders only)
  *
- * `/workflows` and `/executions` render static placeholders that point at
- * the follow up features (10 and 11 respectively), with no API call.
+ * `/executions` renders a static placeholder pointing at Feature 11.
  * `/targets` renders the empty state card for the backend gap documented
- * in the scope.
+ * in the scope. (`/workflows` is a real screen now, covered by its own tests.)
  */
 
 vi.mock('@tanstack/react-router', async () => {
@@ -21,21 +20,6 @@ vi.mock('@tanstack/react-router', async () => {
 })
 
 describe('placeholder routes (AC-7)', () => {
-  it('/workflows points at Feature 10 and makes no API call', async () => {
-    const spy = vi.spyOn(window, 'fetch').mockImplementation(() => {
-      throw new Error('placeholder should not call fetch')
-    })
-    const mod = (await import('@/routes/_authed.workflows')) as unknown as {
-      Route: { component: () => ReactElement }
-    }
-    const Page = mod.Route.component
-    render(<Page />)
-    expect(screen.getByRole('heading', { name: 'Workflows' })).toBeInTheDocument()
-    expect(screen.getByText(/Feature 10/i)).toBeInTheDocument()
-    expect(spy).not.toHaveBeenCalled()
-    spy.mockRestore()
-  })
-
   it('/executions points at Feature 11 and makes no API call', async () => {
     const spy = vi.spyOn(window, 'fetch').mockImplementation(() => {
       throw new Error('placeholder should not call fetch')
