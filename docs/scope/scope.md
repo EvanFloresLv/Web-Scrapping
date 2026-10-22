@@ -204,7 +204,7 @@ Browse executions with filters (workflow, status, time range, target URL, websit
   - [x] FilterBar (workflow / status / target / website / correlation id / time range) + parent workflow name resolution via `useQueries` (satisfies AC-8, AC-9)
   - [x] `/executions/:id` detail route with items table + raw JSON + Copy JSON + config snapshot pane (satisfies AC-11, AC-12, AC-13, AC-14)
   - [x] Auto refresh (conditional refetchInterval) + Problem Details propagation + vitest (satisfies AC-10, AC-15)
-- [ ] Verify it: `/check verify execution browser`
+- [x] Verify it: `/check verify execution browser`
 - [ ] Test it: `/test execution browser`
 Spec [0010](../specs/0010-execution-browser/index.md) · code in `src/app/domains/executions/` + `src/app/api/v1/executions.py` + `frontend/src/`
 
