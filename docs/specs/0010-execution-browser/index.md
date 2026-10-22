@@ -1,7 +1,7 @@
 # 0010. Execution browser
 
 **Date**: 2026-10-21
-**Status**: Proposed
+**Status**: In Progress
 
 ## Summary
 

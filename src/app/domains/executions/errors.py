@@ -86,9 +86,39 @@ class ExecutionNotFoundError(PlatformError):
     title = "Execution Not Found"
 
 
+class InvalidCursorError(PlatformError):
+    """`GET /executions` was called with a malformed `cursor` (spec 0010 AC-2)."""
+
+    status_code = status.HTTP_400_BAD_REQUEST
+    code = ExecutionErrorCode.INVALID_CURSOR.value
+    title = "Invalid Cursor"
+
+
+class InvalidListQueryError(PlatformError):
+    """`GET /executions` query failed validation (spec 0010 AC-3).
+
+    Carries structured per field entries in `self.errors`; rendered under
+    the Problem body's `errors` key by the shared handler (spec 0007 AC-3).
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = ExecutionErrorCode.INVALID_LIST_QUERY.value
+    title = "Invalid List Query"
+
+    def __init__(
+        self,
+        detail: str,
+        *,
+        errors: list[ErrorDetail] | None = None,
+    ) -> None:
+        super().__init__(detail, errors=errors)
+
+
 __all__ = [
     "ExecutionNotFoundError",
+    "InvalidCursorError",
     "InvalidExecuteBodyError",
+    "InvalidListQueryError",
     "TargetNotRegisteredError",
     "TerminalPersistFailedError",
     "VersionArchivedError",

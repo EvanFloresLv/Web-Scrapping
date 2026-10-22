@@ -77,6 +77,12 @@ class Execution(Base):
             "created_at",
             postgresql_ops={"created_at": "DESC"},
         ),
+        # Spec 0010 AC-6: support ticket lookup "paste the correlation id,
+        # land on the matching execution" without a seq scan.
+        Index(
+            "ix_executions_correlation_id",
+            "correlation_id",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid_v7)

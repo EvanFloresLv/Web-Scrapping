@@ -69,6 +69,9 @@ class ExecutionErrorCode(StrEnum):
     INVALID_EXECUTE_BODY = "execution.invalid_execute_body"
     TERMINAL_PERSIST_FAILED = "execution.terminal_persist_failed"
     NOT_FOUND = "execution.not_found"
+    # Spec 0010 (execution browser) list endpoint.
+    INVALID_CURSOR = "execution.invalid_cursor"
+    INVALID_LIST_QUERY = "execution.invalid_list_query"
 
 
 class AgentErrorCode(StrEnum):
