@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -10,16 +14,19 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { z } from 'zod'
 
 import { queryKeys } from '@/api/queryKeys'
+import { Input } from '@/components/ui/input'
 import { type ApiError, apiFetch } from '@/lib/api'
 
 /**
- * Metrics dashboard (spec 0012 M1).
+ * Metrics dashboard (spec 0012).
  *
- * M1 ships one panel: Request rate + latency (p50, p95). Panels for HTTP
- * error rate, extraction, and executions land in M2; empty states and
- * deep linking in M3 and M4.
+ * Four panels: Request rate + latency, HTTP error rate, Extraction, and
+ * Executions. Toolbar carries the window (fixed 1h for the MVP) and a
+ * workflow filter (free text UUID per AC-9). Empty states + deep link
+ * land in M3 and M4.
  */
 
 type MetricPoint = {
@@ -41,24 +48,45 @@ type MetricQueryResponse = {
   series: MetricSeries[]
 }
 
-const DURATION_METRIC = 'http_request_duration_seconds'
-const COUNT_METRIC = 'http_requests_total'
+const HTTP_DURATION = 'http_request_duration_seconds'
+const HTTP_COUNT = 'http_requests_total'
+const EXTRACTION_DURATION = 'extraction_duration_seconds'
+const EXTRACTION_COUNT = 'extraction_runs_total'
+const EXECUTION_DURATION = 'execution_duration_seconds'
+const EXECUTION_COUNT = 'executions_total'
+
+const ALL_METRICS = [
+  HTTP_DURATION,
+  HTTP_COUNT,
+  EXTRACTION_DURATION,
+  EXTRACTION_COUNT,
+  EXECUTION_DURATION,
+  EXECUTION_COUNT,
+] as const
+
+const metricsSearchSchema = z.object({
+  workflow_id: z.string().uuid().optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/_authed/metrics')({
+  validateSearch: (search) => metricsSearchSchema.parse(search),
   component: MetricsPage,
 })
 
 function MetricsPage() {
+  const { workflow_id } = Route.useSearch()
+
   const query = useQuery<MetricQueryResponse, ApiError>({
-    queryKey: queryKeys.metrics.query([DURATION_METRIC, COUNT_METRIC], { window: '1h' }),
-    queryFn: ({ signal }) =>
-      apiFetch<MetricQueryResponse>(
-        `/api/v1/metrics/query?metric=${DURATION_METRIC}&metric=${COUNT_METRIC}`,
-        { signal },
-      ),
+    queryKey: queryKeys.metrics.query([...ALL_METRICS], { window: '1h' }),
+    queryFn: ({ signal }) => {
+      const metricParams = ALL_METRICS.map((m) => `metric=${encodeURIComponent(m)}`).join('&')
+      return apiFetch<MetricQueryResponse>(`/api/v1/metrics/query?${metricParams}`, { signal })
+    },
     refetchInterval: 30_000,
     staleTime: 15_000,
   })
+
+  const series = query.data?.series ?? []
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -69,6 +97,8 @@ function MetricsPage() {
           <code className="rounded bg-muted px-1 text-xs">METRICS_FLUSH_INTERVAL_S</code> seconds.
         </p>
       </header>
+
+      <Toolbar workflowId={workflow_id} />
 
       {query.isError ? (
         <div
@@ -85,52 +115,137 @@ function MetricsPage() {
         </div>
       ) : null}
 
-      <section className="rounded-lg border bg-card p-4 shadow-sm">
-        <header className="mb-3">
-          <h2 className="text-base font-semibold">Request rate &amp; latency</h2>
-          <p className="text-xs text-muted-foreground">
-            Requests per minute, p50 and p95 latency, grouped by route (top 10 by volume).
-          </p>
-        </header>
-        <RequestLatencyPanel data={query.data} isLoading={query.isLoading} />
-      </section>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Panel
+          title="Request rate & latency"
+          subtitle="Requests per minute, p50 and p95 latency, grouped by route (top 10 by volume)."
+        >
+          <RequestLatencyPanel series={series} isLoading={query.isLoading} />
+        </Panel>
+        <Panel
+          title="HTTP error rate"
+          subtitle="Request count stacked by status class, raw counts."
+        >
+          <HttpErrorPanel series={series} isLoading={query.isLoading} />
+        </Panel>
+        <Panel
+          title="Extraction"
+          subtitle={
+            workflow_id
+              ? 'Completed vs failed extractions + p95 duration (grouped by phase).'
+              : 'Completed vs failed extractions + p95 duration, aggregated across workflows.'
+          }
+        >
+          <ExtractionPanel
+            series={series}
+            isLoading={query.isLoading}
+            workflowFilter={workflow_id}
+          />
+        </Panel>
+        <Panel
+          title="Executions"
+          subtitle={
+            workflow_id
+              ? 'Throughput + p95 execution duration (filtered to one workflow).'
+              : 'Throughput + p95 execution duration, aggregated across workflows.'
+          }
+        >
+          <ExecutionsPanel
+            series={series}
+            isLoading={query.isLoading}
+            workflowFilter={workflow_id}
+          />
+        </Panel>
+      </div>
     </div>
   )
 }
 
-type MergedPoint = {
-  bucket_start: string
-  bucket_label: string
-  count: number
-  p50_ms: number | null
-  p95_ms: number | null
+function Panel({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string
+  subtitle: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-lg border bg-card p-4 shadow-sm">
+      <header className="mb-3">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      </header>
+      {children}
+    </section>
+  )
 }
 
+function Toolbar({ workflowId }: { workflowId: string | undefined }) {
+  // Toolbar is a thin wrapper for M2. The window selector is fixed to the
+  // last 60 minutes; the workflow input is a free text UUID (spec 0012 AC-9).
+  // M4 wires the clear filter + the deep link entry from the run detail page.
+  return (
+    <div className="flex flex-wrap items-end gap-4 rounded-md border bg-card/50 p-3">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-muted-foreground">Window</span>
+        <div className="h-9 rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Last 60 minutes
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-muted-foreground" htmlFor="workflow-filter">
+          Workflow id (optional)
+        </label>
+        <Input
+          id="workflow-filter"
+          placeholder="paste a workflow uuid"
+          defaultValue={workflowId ?? ''}
+          className="h-9 w-80"
+          readOnly
+        />
+      </div>
+      {workflowId ? (
+        <p className="text-xs text-muted-foreground">
+          Filter active: {workflowId.slice(0, 8)}… (clear via run detail page in M4)
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------------- */
+/* Panel: Request rate & latency                                             */
+/* ------------------------------------------------------------------------- */
+
 const TOP_ROUTE_CAP = 10
+const ROUTE_COLORS = [
+  '#2563eb',
+  '#16a34a',
+  '#f97316',
+  '#9333ea',
+  '#dc2626',
+  '#0ea5e9',
+  '#ca8a04',
+  '#ea580c',
+  '#059669',
+  '#be123c',
+]
 
 function RequestLatencyPanel({
-  data,
+  series,
   isLoading,
 }: {
-  data: MetricQueryResponse | undefined
+  series: MetricSeries[]
   isLoading: boolean
 }) {
-  if (isLoading) {
-    return <div className="h-64 animate-pulse rounded bg-muted/40" />
-  }
-  if (!data || data.series.length === 0) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-        No data in the last hour.
-      </div>
-    )
+  const durationSeries = series.filter((s) => s.metric === HTTP_DURATION)
+  const countSeries = series.filter((s) => s.metric === HTTP_COUNT)
+  if (isLoading) return <PanelSkeleton />
+  if (countSeries.length === 0 && durationSeries.length === 0) {
+    return <NoData />
   }
 
-  const durationSeries = data.series.filter((s) => s.metric === DURATION_METRIC)
-  const countSeries = data.series.filter((s) => s.metric === COUNT_METRIC)
-
-  // Rank routes by total request count in the window and cap at TOP_ROUTE_CAP
-  // so a sprawling API does not render 60 lines.
   const totalsByRoute = new Map<string, number>()
   for (const s of countSeries) {
     const route = s.labels.route ?? 'unmatched'
@@ -143,106 +258,46 @@ function RequestLatencyPanel({
     .map(([route]) => route)
   const hiddenRouteCount = Math.max(0, totalsByRoute.size - topRoutes.length)
 
-  const perRoutePoints: Record<string, Map<string, MergedPoint>> = {}
-  for (const route of topRoutes) {
-    perRoutePoints[route] = new Map()
-  }
-
-  for (const s of countSeries) {
-    const route = s.labels.route ?? 'unmatched'
-    if (!perRoutePoints[route]) continue
-    for (const p of s.points) {
-      const existing = perRoutePoints[route].get(p.bucket_start)
-      const merged: MergedPoint = existing ?? {
-        bucket_start: p.bucket_start,
-        bucket_label: new Date(p.bucket_start).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        count: 0,
-        p50_ms: null,
-        p95_ms: null,
-      }
-      merged.count += p.count
-      perRoutePoints[route].set(p.bucket_start, merged)
-    }
-  }
-
-  // Pull p50/p95 from duration series into the same per-route buckets.
-  for (const s of durationSeries) {
-    const route = s.labels.route ?? 'unmatched'
-    if (!perRoutePoints[route]) continue
-    for (const p of s.points) {
-      const existing = perRoutePoints[route].get(p.bucket_start)
-      if (!existing) continue
-      existing.p50_ms = p.p50_ms
-      existing.p95_ms = p.p95_ms
-    }
-  }
-
-  const sampleRoute = topRoutes[0]
-  if (!sampleRoute) {
-    return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-        No data in the last hour.
-      </div>
-    )
-  }
-
-  // Shape the chart data: one row per bucket, each top route as its own
-  // count series. For M1 we show the aggregated (summed) latency across
-  // the top routes rather than one latency line per route, which keeps
-  // the chart readable at 10 series.
   const bucketKeys = Array.from(
-    new Set(topRoutes.flatMap((r) => Array.from(perRoutePoints[r].keys()))),
+    new Set([
+      ...countSeries.flatMap((s) => s.points.map((p) => p.bucket_start)),
+      ...durationSeries.flatMap((s) => s.points.map((p) => p.bucket_start)),
+    ]),
   ).sort()
 
   const chartData = bucketKeys.map((bucket) => {
     const row: Record<string, number | string | null> = {
-      bucket_label: new Date(bucket).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      bucket_label: shortTime(bucket),
     }
-    let totalCount = 0
-    let p50Sum = 0
-    let p50Weight = 0
-    let p95Sum = 0
-    let p95Weight = 0
+    let p50Weighted = 0
+    let p95Weighted = 0
+    let weight = 0
     for (const route of topRoutes) {
-      const point = perRoutePoints[route].get(bucket)
-      row[route] = point?.count ?? 0
-      totalCount += point?.count ?? 0
+      const count = countSeries
+        .filter((s) => (s.labels.route ?? 'unmatched') === route)
+        .flatMap((s) => s.points.filter((p) => p.bucket_start === bucket))
+        .reduce((acc, p) => acc + p.count, 0)
+      row[route] = count
+    }
+    for (const s of durationSeries) {
+      const point = s.points.find((p) => p.bucket_start === bucket)
       if (point?.p50_ms != null && point.count > 0) {
-        p50Sum += point.p50_ms * point.count
-        p50Weight += point.count
+        p50Weighted += point.p50_ms * point.count
+        weight += point.count
       }
       if (point?.p95_ms != null && point.count > 0) {
-        p95Sum += point.p95_ms * point.count
-        p95Weight += point.count
+        p95Weighted += point.p95_ms * point.count
       }
     }
-    row.__total = totalCount
-    row.__p50_ms = p50Weight > 0 ? p50Sum / p50Weight : null
-    row.__p95_ms = p95Weight > 0 ? p95Sum / p95Weight : null
+    row.__p50_ms = weight > 0 ? p50Weighted / weight : null
+    row.__p95_ms = weight > 0 ? p95Weighted / weight : null
     return row
   })
 
-  const routeColors = [
-    '#2563eb',
-    '#16a34a',
-    '#f97316',
-    '#9333ea',
-    '#dc2626',
-    '#0ea5e9',
-    '#ca8a04',
-    '#ea580c',
-    '#059669',
-    '#be123c',
-  ]
+  if (chartData.length === 0) return <NoData />
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
@@ -272,7 +327,7 @@ function RequestLatencyPanel({
                 type="monotone"
                 dataKey={route}
                 name={route}
-                stroke={routeColors[i % routeColors.length]}
+                stroke={ROUTE_COLORS[i % ROUTE_COLORS.length]}
                 dot={false}
                 strokeWidth={1.5}
               />
@@ -308,4 +363,271 @@ function RequestLatencyPanel({
       ) : null}
     </div>
   )
+}
+
+/* ------------------------------------------------------------------------- */
+/* Panel: HTTP error rate                                                    */
+/* ------------------------------------------------------------------------- */
+
+const STATUS_CLASS_COLORS: Record<string, string> = {
+  '2xx': '#16a34a',
+  '3xx': '#0ea5e9',
+  '4xx': '#f59e0b',
+  '5xx': '#dc2626',
+}
+
+function HttpErrorPanel({ series, isLoading }: { series: MetricSeries[]; isLoading: boolean }) {
+  if (isLoading) return <PanelSkeleton />
+  const countSeries = series.filter((s) => s.metric === HTTP_COUNT)
+  if (countSeries.length === 0) return <NoData />
+
+  const statusClasses = ['2xx', '3xx', '4xx', '5xx'] as const
+  const bucketKeys = Array.from(
+    new Set(countSeries.flatMap((s) => s.points.map((p) => p.bucket_start))),
+  ).sort()
+
+  const chartData = bucketKeys.map((bucket) => {
+    const row: Record<string, number | string> = { bucket_label: shortTime(bucket) }
+    for (const cls of statusClasses) {
+      const count = countSeries
+        .filter((s) => s.labels.status_class === cls)
+        .flatMap((s) => s.points.filter((p) => p.bucket_start === bucket))
+        .reduce((acc, p) => acc + p.count, 0)
+      row[cls] = count
+    }
+    return row
+  })
+
+  return (
+    <div className="h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+          <XAxis dataKey="bucket_label" fontSize={11} />
+          <YAxis fontSize={11} allowDecimals={false} />
+          <Tooltip />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {statusClasses.map((cls) => (
+            <Area
+              key={cls}
+              type="monotone"
+              dataKey={cls}
+              name={cls}
+              stackId="1"
+              stroke={STATUS_CLASS_COLORS[cls]}
+              fill={STATUS_CLASS_COLORS[cls]}
+              fillOpacity={0.45}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------------- */
+/* Panel: Extraction                                                          */
+/* ------------------------------------------------------------------------- */
+
+const PHASE_COLORS: Record<string, string> = {
+  fetch: '#2563eb',
+  parse: '#16a34a',
+  validate: '#9333ea',
+  total: '#64748b',
+}
+
+function ExtractionPanel({
+  series,
+  isLoading,
+  workflowFilter,
+}: {
+  series: MetricSeries[]
+  isLoading: boolean
+  workflowFilter: string | undefined
+}) {
+  if (isLoading) return <PanelSkeleton />
+  const matches = (s: MetricSeries) =>
+    workflowFilter ? s.labels.workflow_id === workflowFilter : true
+  const countSeries = series.filter((s) => s.metric === EXTRACTION_COUNT).filter(matches)
+  const durationSeries = series.filter((s) => s.metric === EXTRACTION_DURATION).filter(matches)
+  if (countSeries.length === 0 && durationSeries.length === 0) return <NoData />
+
+  const phases = ['fetch', 'parse', 'validate'] as const
+  const bucketKeys = Array.from(
+    new Set([
+      ...countSeries.flatMap((s) => s.points.map((p) => p.bucket_start)),
+      ...durationSeries.flatMap((s) => s.points.map((p) => p.bucket_start)),
+    ]),
+  ).sort()
+
+  const chartData = bucketKeys.map((bucket) => {
+    const row: Record<string, number | string | null> = { bucket_label: shortTime(bucket) }
+    let completed = 0
+    let failed = 0
+    for (const s of countSeries) {
+      const points = s.points.filter((p) => p.bucket_start === bucket)
+      const sum = points.reduce((acc, p) => acc + p.count, 0)
+      if (s.labels.status === 'completed') completed += sum
+      if (s.labels.status === 'failed') failed += sum
+    }
+    row.completed = completed
+    row.failed = failed
+
+    // p95 across phases: weighted mean per phase so the eye can compare.
+    for (const phase of phases) {
+      let weighted = 0
+      let weight = 0
+      for (const s of durationSeries.filter((d) => d.labels.phase === phase)) {
+        const point = s.points.find((p) => p.bucket_start === bucket)
+        if (point?.p95_ms != null && point.count > 0) {
+          weighted += point.p95_ms * point.count
+          weight += point.count
+        }
+      }
+      row[`${phase}_p95_ms`] = weight > 0 ? weighted / weight : null
+    }
+    return row
+  })
+
+  return (
+    <div className="h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+          <XAxis dataKey="bucket_label" fontSize={11} />
+          <YAxis yAxisId="count" fontSize={11} allowDecimals={false} />
+          <YAxis
+            yAxisId="latency"
+            orientation="right"
+            fontSize={11}
+            tickFormatter={(v: number) => `${v.toFixed(0)}ms`}
+          />
+          <Tooltip />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar yAxisId="count" dataKey="completed" stackId="x" fill="#16a34a" name="completed" />
+          <Bar yAxisId="count" dataKey="failed" stackId="x" fill="#dc2626" name="failed" />
+          {phases.map((phase) => (
+            <Line
+              key={phase}
+              yAxisId="latency"
+              type="monotone"
+              dataKey={`${phase}_p95_ms`}
+              name={`p95 ${phase}`}
+              stroke={PHASE_COLORS[phase]}
+              strokeDasharray="4 2"
+              dot={false}
+              strokeWidth={1}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------------- */
+/* Panel: Executions                                                         */
+/* ------------------------------------------------------------------------- */
+
+function ExecutionsPanel({
+  series,
+  isLoading,
+  workflowFilter,
+}: {
+  series: MetricSeries[]
+  isLoading: boolean
+  workflowFilter: string | undefined
+}) {
+  if (isLoading) return <PanelSkeleton />
+  const matches = (s: MetricSeries) =>
+    workflowFilter ? s.labels.workflow_id === workflowFilter : true
+  const countSeries = series.filter((s) => s.metric === EXECUTION_COUNT).filter(matches)
+  const durationSeries = series.filter((s) => s.metric === EXECUTION_DURATION).filter(matches)
+  if (countSeries.length === 0 && durationSeries.length === 0) return <NoData />
+
+  const bucketKeys = Array.from(
+    new Set([
+      ...countSeries.flatMap((s) => s.points.map((p) => p.bucket_start)),
+      ...durationSeries.flatMap((s) => s.points.map((p) => p.bucket_start)),
+    ]),
+  ).sort()
+
+  const chartData = bucketKeys.map((bucket) => {
+    const row: Record<string, number | string | null> = { bucket_label: shortTime(bucket) }
+    const total = countSeries
+      .flatMap((s) => s.points.filter((p) => p.bucket_start === bucket))
+      .reduce((acc, p) => acc + p.count, 0)
+    row.throughput = total
+
+    let weighted = 0
+    let weight = 0
+    for (const s of durationSeries) {
+      const point = s.points.find((p) => p.bucket_start === bucket)
+      if (point?.p95_ms != null && point.count > 0) {
+        weighted += point.p95_ms * point.count
+        weight += point.count
+      }
+    }
+    row.p95_ms = weight > 0 ? weighted / weight : null
+    return row
+  })
+
+  return (
+    <div className="h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+          <XAxis dataKey="bucket_label" fontSize={11} />
+          <YAxis yAxisId="count" fontSize={11} allowDecimals={false} />
+          <YAxis
+            yAxisId="latency"
+            orientation="right"
+            fontSize={11}
+            tickFormatter={(v: number) => `${v.toFixed(0)}ms`}
+          />
+          <Tooltip />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Line
+            yAxisId="count"
+            type="monotone"
+            dataKey="throughput"
+            name="executions/min"
+            stroke="#2563eb"
+            strokeWidth={1.5}
+            dot={false}
+          />
+          <Line
+            yAxisId="latency"
+            type="monotone"
+            dataKey="p95_ms"
+            name="p95 ms"
+            stroke="#6b7280"
+            strokeDasharray="4 2"
+            strokeWidth={1}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------------- */
+/* Shared                                                                    */
+/* ------------------------------------------------------------------------- */
+
+function PanelSkeleton() {
+  return <div className="h-64 animate-pulse rounded bg-muted/40" />
+}
+
+function NoData() {
+  return (
+    <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      No data in the last hour.
+    </div>
+  )
+}
+
+function shortTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

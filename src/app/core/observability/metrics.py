@@ -1,66 +1,89 @@
-"""Thin metrics wrapper (spec 0005 AC-15, spec 0006 AC-13).
+"""Thin facade over the shared `prometheus-client` registry.
 
-The MVP writes samples through a Python logger so the shape is validated
-end to end without pulling in Prometheus or OpenTelemetry. Feature 13
-swaps the backend behind the same interface.
+Spec 0012 M2 promotes the four helpers from DEBUG log stubs to real
+`prometheus-client` observations against `get_registry()`. Signatures are
+unchanged so callers in `ExtractionService` and `ExecutionService` keep
+their shape; the `workflow_id` label is read from structlog contextvars,
+which both services already bind (`workflow_id=str(workflow.id)` for the
+execution lifespan, same for extraction's `_run_bound`). When the context
+is missing (unit tests, direct calls) the label falls back to `unknown`
+so cardinality stays bounded.
 
-Instruments:
+Instruments (see `app.core.observability.registry`):
 
-- `extraction_duration_seconds` (histogram shaped, label `phase`): one
-  sample per phase of an extraction (`fetch`, `parse`, `validate`, `total`).
-- `extraction_items_total` (counter, label `status`): one bump per
-  extraction run.
-- `executions_total` (counter, label `status`): one bump per executor
-  terminal (spec 0006 AC-13).
-- `execution_duration_seconds` (histogram shaped, label `status`): one
-  sample per executor terminal (spec 0006 AC-13).
+- `extraction_duration_seconds` (histogram, labels `workflow_id`, `status`,
+  `phase`): one sample per phase of an extraction (`fetch`, `parse`,
+  `validate`, `total`).
+- `extraction_runs_total` (counter, labels `workflow_id`, `status`, `phase`):
+  one bump per extraction run (phase="total").
+- `executions_total` (counter, labels `workflow_id`, `status`): one bump
+  per executor terminal (spec 0006 AC-13).
+- `execution_duration_seconds` (histogram, labels `workflow_id`, `status`):
+  one sample per executor terminal (spec 0006 AC-13).
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from app.core.logging import get_logger
+import structlog
+
+from app.core.observability.registry import get_registry
 
 Phase = Literal["fetch", "parse", "validate", "total"]
 _Status = Literal["completed", "failed"]
 
-_metrics_log = get_logger("app.metrics")
+
+def _workflow_id_from_context() -> str:
+    """Read the currently bound `workflow_id` from structlog contextvars.
+
+    Both `ExtractionService._run_bound` and `ExecutionService.execute`
+    bind this value for the duration of a run (spec 0011 AC-4). Missing
+    bindings fall back to `unknown`.
+    """
+    bound = structlog.contextvars.get_contextvars()
+    workflow_id = bound.get("workflow_id")
+    if isinstance(workflow_id, str) and workflow_id:
+        return workflow_id
+    return "unknown"
 
 
 def observe_duration(phase: Phase, duration_s: float) -> None:
-    """Record a duration sample for one phase of a run (spec 0005 AC-15)."""
-    _metrics_log.debug(
-        "metrics.observe_duration",
-        name="extraction_duration_seconds",
+    """Record a duration sample for one phase of an extraction run."""
+    workflow_id = _workflow_id_from_context()
+    # Mid run phases observe with status="completed" (the phase itself did
+    # not raise). The terminal phase ("total") observes with the eventual
+    # terminal status via a separate call site that also bumps the counter.
+    get_registry().extraction_duration_seconds.labels(
+        workflow_id=workflow_id,
+        status="completed",
         phase=phase,
-        value=duration_s,
-    )
+    ).observe(duration_s)
 
 
 def increment_items(status: _Status) -> None:
-    """Record one terminal run of the extractor (spec 0005 AC-15)."""
-    _metrics_log.debug(
-        "metrics.increment_items",
-        name="extraction_items_total",
+    """Record one terminal run of the extractor."""
+    workflow_id = _workflow_id_from_context()
+    get_registry().extraction_runs_total.labels(
+        workflow_id=workflow_id,
         status=status,
-    )
+        phase="total",
+    ).inc()
 
 
 def observe_execution_duration(status: _Status, duration_s: float) -> None:
     """Record one executor duration sample (spec 0006 AC-13)."""
-    _metrics_log.debug(
-        "metrics.observe_duration",
-        name="execution_duration_seconds",
+    workflow_id = _workflow_id_from_context()
+    get_registry().execution_duration_seconds.labels(
+        workflow_id=workflow_id,
         status=status,
-        value=duration_s,
-    )
+    ).observe(duration_s)
 
 
 def increment_executions(status: _Status) -> None:
     """Record one executor terminal (spec 0006 AC-13)."""
-    _metrics_log.debug(
-        "metrics.increment_items",
-        name="executions_total",
+    workflow_id = _workflow_id_from_context()
+    get_registry().executions_total.labels(
+        workflow_id=workflow_id,
         status=status,
-    )
+    ).inc()

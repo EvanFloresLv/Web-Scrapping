@@ -117,6 +117,9 @@ class ExecutionService:
         version_id: UUID | None,
         correlation_id: str,
     ) -> Execution:
+        # Spec 0012 AC-2: metrics facade reads `workflow_id` from structlog
+        # contextvars so instrument labels do not need a per call parameter.
+        structlog.contextvars.bind_contextvars(workflow_id=str(workflow_id))
         workflow = await self._workflows.get_live_workflow(workflow_id)
         if workflow is None:
             raise WorkflowNotFoundError(f"workflow {workflow_id} not found")
