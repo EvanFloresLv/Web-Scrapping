@@ -356,6 +356,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Executions
+         * @description List executions matching the given filters (spec 0010 AC-1..AC-6).
+         *
+         *     Query parsing is done by hand (not FastAPI's `Depends`) so a validation
+         *     failure surfaces as our Problem Details `execution.invalid_list_query`
+         *     with the Pydantic field path in `details[].loc`, matching the house
+         *     error contract (spec 0007 AC-3).
+         */
+        get: operations["list_executions_api_v1_executions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/executions/{execution_id}": {
         parameters: {
             query?: never;
@@ -449,6 +474,71 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * ExecutionListItem
+         * @description Row shape for `GET /api/v1/executions` (spec 0010 AC-1).
+         *
+         *     Matches `ExecutionBody` (which already denormalises `workflow_id` onto
+         *     the payload per spec 0006 AC-7); the list endpoint reuses that shape as
+         *     is so a row carries everything the UI needs to render the list without
+         *     a second lookup, and the detail route reuses it without reshaping.
+         */
+        ExecutionListItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Workflow Id
+             * Format: uuid
+             */
+            workflow_id: string;
+            /**
+             * Workflow Version Id
+             * Format: uuid
+             */
+            workflow_version_id: string;
+            /**
+             * Target Url Id
+             * Format: uuid
+             */
+            target_url_id: string;
+            /** Status */
+            status: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** Items Extracted */
+            items_extracted: number;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Correlation Id */
+            correlation_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * ExecutionListResponse
+         * @description Top-level response body for the list endpoint (spec 0010 AC-1).
+         *
+         *     `total` is intentionally omitted (see spec 0010 Rationale): COUNT(*)
+         *     over an unbounded filterable table pays a tax on every page.
+         */
+        ExecutionListResponse: {
+            /** Items */
+            items?: components["schemas"]["ExecutionListItem"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /**
          * ExecutionResponse
@@ -1738,6 +1828,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExecutionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_executions_api_v1_executions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionListResponse"];
                 };
             };
             /** @description Validation Error */

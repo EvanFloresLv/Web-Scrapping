@@ -119,7 +119,6 @@ describe('VersionEditor Save error routing', () => {
               message: 'missing key for declared field',
             },
           ],
-          instance: '/',
         })
       }
       // Any targets lookup from the Preview panel: empty list is fine.

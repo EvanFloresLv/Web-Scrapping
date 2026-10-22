@@ -27,7 +27,6 @@ function makeError(errors: Array<{ loc: (string | number)[]; code: string; messa
     code: 'workflow.validation_error',
     correlation_id: 'cid-test',
     errors,
-    instance: '/',
   })
 }
 

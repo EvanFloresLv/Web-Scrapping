@@ -14,6 +14,8 @@
  *   One workflow                            ['workflows', id]
  *   Versions under a workflow               ['workflows', id, 'versions', filters]
  *   One version                             ['workflows', id, 'versions', vid]
+ *   Executions list                         ['executions', filters]
+ *   One execution                           ['executions', id]
  *
  * `filters` is a stable object (the parsed, defaulted search params object);
  * TanStack Query hashes it structurally so prop order is irrelevant.
@@ -45,5 +47,10 @@ export const queryKeys = {
       detail: (workflowId: string, versionId: string) =>
         ['workflows', workflowId, 'versions', versionId] as const,
     },
+  },
+  executions: {
+    all: ['executions'] as const,
+    list: (filters: Filters) => ['executions', filters] as const,
+    detail: (id: string) => ['executions', id] as const,
   },
 } as const
