@@ -16,6 +16,7 @@ import { Route as AuthedExecutionsRouteImport } from './routes/_authed.execution
 import { Route as AuthedTargetsRouteImport } from './routes/_authed.targets'
 import { Route as AuthedWebsitesRouteImport } from './routes/_authed.websites'
 import { Route as AuthedWorkflowsRouteImport } from './routes/_authed.workflows'
+import { Route as AuthedExecutionsExecutionIdRouteImport } from './routes/_authed.executions.$executionId'
 import { Route as AuthedWebsitesWebsiteIdRouteImport } from './routes/_authed.websites_.$websiteId'
 import { Route as AuthedWorkflowsWorkflowIdRouteImport } from './routes/_authed.workflows_.$workflowId'
 import { Route as AuthedWorkflowsWorkflowIdIndexRouteImport } from './routes/_authed.workflows_.$workflowId.index'
@@ -59,6 +60,12 @@ const AuthedWorkflowsRoute = AuthedWorkflowsRouteImport.update({
   path: '/workflows',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedExecutionsExecutionIdRoute =
+  AuthedExecutionsExecutionIdRouteImport.update({
+    id: '/$executionId',
+    path: '/$executionId',
+    getParentRoute: () => AuthedExecutionsRoute,
+  } as any)
 const AuthedWebsitesWebsiteIdRoute = AuthedWebsitesWebsiteIdRouteImport.update({
   id: '/websites_/$websiteId',
   path: '/websites/$websiteId',
@@ -110,10 +117,11 @@ const AuthedWorkflowsWorkflowIdVersionsNewRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
-  '/executions': typeof AuthedExecutionsRoute
+  '/executions': typeof AuthedExecutionsRouteWithChildren
   '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
   '/workflows': typeof AuthedWorkflowsRoute
+  '/executions/$executionId': typeof AuthedExecutionsExecutionIdRoute
   '/websites/$websiteId': typeof AuthedWebsitesWebsiteIdRoute
   '/workflows/$workflowId': typeof AuthedWorkflowsWorkflowIdRouteWithChildren
   '/workflows/$workflowId/overview': typeof AuthedWorkflowsWorkflowIdOverviewRoute
@@ -125,11 +133,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/executions': typeof AuthedExecutionsRoute
+  '/executions': typeof AuthedExecutionsRouteWithChildren
   '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
   '/workflows': typeof AuthedWorkflowsRoute
   '/': typeof AuthedIndexRoute
+  '/executions/$executionId': typeof AuthedExecutionsExecutionIdRoute
   '/websites/$websiteId': typeof AuthedWebsitesWebsiteIdRoute
   '/workflows/$workflowId/overview': typeof AuthedWorkflowsWorkflowIdOverviewRoute
   '/workflows/$workflowId/preview': typeof AuthedWorkflowsWorkflowIdPreviewRoute
@@ -142,11 +151,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
-  '/_authed/executions': typeof AuthedExecutionsRoute
+  '/_authed/executions': typeof AuthedExecutionsRouteWithChildren
   '/_authed/targets': typeof AuthedTargetsRoute
   '/_authed/websites': typeof AuthedWebsitesRoute
   '/_authed/workflows': typeof AuthedWorkflowsRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/executions/$executionId': typeof AuthedExecutionsExecutionIdRoute
   '/_authed/websites_/$websiteId': typeof AuthedWebsitesWebsiteIdRoute
   '/_authed/workflows_/$workflowId': typeof AuthedWorkflowsWorkflowIdRouteWithChildren
   '/_authed/workflows_/$workflowId/overview': typeof AuthedWorkflowsWorkflowIdOverviewRoute
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/targets'
     | '/websites'
     | '/workflows'
+    | '/executions/$executionId'
     | '/websites/$websiteId'
     | '/workflows/$workflowId'
     | '/workflows/$workflowId/overview'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/websites'
     | '/workflows'
     | '/'
+    | '/executions/$executionId'
     | '/websites/$websiteId'
     | '/workflows/$workflowId/overview'
     | '/workflows/$workflowId/preview'
@@ -197,6 +209,7 @@ export interface FileRouteTypes {
     | '/_authed/websites'
     | '/_authed/workflows'
     | '/_authed/'
+    | '/_authed/executions/$executionId'
     | '/_authed/websites_/$websiteId'
     | '/_authed/workflows_/$workflowId'
     | '/_authed/workflows_/$workflowId/overview'
@@ -263,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedWorkflowsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/executions/$executionId': {
+      id: '/_authed/executions/$executionId'
+      path: '/$executionId'
+      fullPath: '/executions/$executionId'
+      preLoaderRoute: typeof AuthedExecutionsExecutionIdRouteImport
+      parentRoute: typeof AuthedExecutionsRoute
+    }
     '/_authed/websites_/$websiteId': {
       id: '/_authed/websites_/$websiteId'
       path: '/websites/$websiteId'
@@ -322,6 +342,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthedExecutionsRouteChildren {
+  AuthedExecutionsExecutionIdRoute: typeof AuthedExecutionsExecutionIdRoute
+}
+
+const AuthedExecutionsRouteChildren: AuthedExecutionsRouteChildren = {
+  AuthedExecutionsExecutionIdRoute: AuthedExecutionsExecutionIdRoute,
+}
+
+const AuthedExecutionsRouteWithChildren =
+  AuthedExecutionsRoute._addFileChildren(AuthedExecutionsRouteChildren)
+
 interface AuthedWorkflowsWorkflowIdRouteChildren {
   AuthedWorkflowsWorkflowIdOverviewRoute: typeof AuthedWorkflowsWorkflowIdOverviewRoute
   AuthedWorkflowsWorkflowIdPreviewRoute: typeof AuthedWorkflowsWorkflowIdPreviewRoute
@@ -352,7 +383,7 @@ const AuthedWorkflowsWorkflowIdRouteWithChildren =
   )
 
 interface AuthedRouteChildren {
-  AuthedExecutionsRoute: typeof AuthedExecutionsRoute
+  AuthedExecutionsRoute: typeof AuthedExecutionsRouteWithChildren
   AuthedTargetsRoute: typeof AuthedTargetsRoute
   AuthedWebsitesRoute: typeof AuthedWebsitesRoute
   AuthedWorkflowsRoute: typeof AuthedWorkflowsRoute
@@ -362,7 +393,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
-  AuthedExecutionsRoute: AuthedExecutionsRoute,
+  AuthedExecutionsRoute: AuthedExecutionsRouteWithChildren,
   AuthedTargetsRoute: AuthedTargetsRoute,
   AuthedWebsitesRoute: AuthedWebsitesRoute,
   AuthedWorkflowsRoute: AuthedWorkflowsRoute,

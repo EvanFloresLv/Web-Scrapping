@@ -224,7 +224,8 @@ function ExecutionsPage() {
       className: 'w-16 text-right',
       cell: (row) => (
         <Link
-          to={`/executions/${row.id}` as never}
+          to="/executions/$executionId"
+          params={{ executionId: row.id }}
           className="text-sm text-primary hover:underline"
         >
           Open
