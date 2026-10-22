@@ -121,7 +121,7 @@ async function loadListRoute() {
 }
 
 async function loadDetailRoute() {
-  const mod = (await import('@/routes/_authed.executions.$executionId')) as unknown as {
+  const mod = (await import('@/routes/_authed.executions_.$executionId')) as unknown as {
     Route: {
       component: () => ReactElement
       useParams: () => { executionId: string }
@@ -210,6 +210,90 @@ describe('/executions list route (spec 0010)', () => {
   })
 })
 
+describe('search param schema fallback (spec 0010 AC-7, AC-20)', () => {
+  it('normalises invalid values back to defaults without throwing', async () => {
+    // Import the Zod schema the route uses via its module to make sure the
+    // actual production schema parses this URL (not a copy here).
+    const mod = await import('@/routes/_authed.executions')
+    // The schema is attached to the Route config as `validateSearch`.
+    // The mock replaces createFileRoute with `(opts) => opts`, so Route IS
+    // the opts object directly.
+    const validate = (
+      mod as unknown as {
+        Route: { validateSearch: (s: Record<string, unknown>) => Record<string, unknown> }
+      }
+    ).Route.validateSearch
+    const out = validate({
+      page_size: 999,
+      status: 'garbage',
+      with_deleted: 'notabool',
+      workflow_id: 'not-a-uuid',
+      correlation_id: '',
+    })
+    expect(out.page_size).toBe(50)
+    expect(out.status).toBeUndefined()
+    expect(out.with_deleted).toBe(false)
+    expect(out.workflow_id).toBeUndefined()
+    // Empty string correlation_id falls back to undefined (min_length is 1).
+    expect(out.correlation_id).toBeUndefined()
+  })
+})
+
+describe('auto refresh behaviour (spec 0010 AC-10)', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ apiKey: 'test-key', isSignedIn: true })
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  it('polls at 3s while a running row is visible, stops once it flips', async () => {
+    let runningVisible = true
+    const executionCalls: number[] = []
+    const fetchMock = vi.fn<FetchFn>(async (input) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/api/v1/executions') && !url.includes('/api/v1/executions/')) {
+        executionCalls.push(Date.now())
+        const row = {
+          ...EXECUTION_ROW,
+          status: runningVisible ? ('running' as const) : ('completed' as const),
+        }
+        return jsonResponse({ items: [row], next_cursor: null })
+      }
+      if (url.includes(`/api/v1/workflows/${WORKFLOW_ID}`)) {
+        return jsonResponse(WORKFLOW)
+      }
+      if (url.includes('/api/v1/websites')) {
+        return jsonResponse({ items: [], total: 0 })
+      }
+      return jsonResponse({})
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const Page = await loadListRoute()
+    render(withClient(<Page />))
+    // Initial fetch.
+    await vi.waitFor(() => expect(executionCalls.length).toBeGreaterThanOrEqual(1))
+    const initial = executionCalls.length
+
+    // Advance 7s: expect ~2 extra calls at the 3s cadence.
+    await vi.advanceTimersByTimeAsync(7000)
+    const afterPoll = executionCalls.length
+    expect(afterPoll).toBeGreaterThan(initial)
+
+    // Flip to completed. The next poll should see completed and stop.
+    runningVisible = false
+    await vi.advanceTimersByTimeAsync(4000)
+    const afterFlip = executionCalls.length
+    // Give the poll one more cycle; no additional calls should land.
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(executionCalls.length).toBe(afterFlip)
+  })
+})
+
 describe('/executions/:id detail route (spec 0010)', () => {
   beforeEach(() => {
     useAuthStore.setState({ apiKey: 'test-key', isSignedIn: true })
@@ -271,6 +355,47 @@ describe('/executions/:id detail route (spec 0010)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('fetch.timeout')
     expect(alert.textContent).toContain('timed out after 30s')
+  })
+
+  it('config pane is lazy: no version fetch until expanded (AC-13)', async () => {
+    const user = userEvent.setup()
+    const versionCalls: string[] = []
+    const fetchMock = vi.fn<FetchFn>(async (input) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes(`/api/v1/workflows/${WORKFLOW_ID}/versions/${VERSION_ID}`)) {
+        versionCalls.push(url)
+        return jsonResponse({
+          id: VERSION_ID,
+          workflow_id: WORKFLOW_ID,
+          version_number: 7,
+          status: 'published',
+          config: { container_selector: 'article', fields: [], output_schema: {} },
+          published_at: '2026-10-21T12:00:00Z',
+          archived_at: null,
+          created_at: '2026-10-21T12:00:00Z',
+          updated_at: '2026-10-21T12:00:00Z',
+        })
+      }
+      if (url.includes(`/api/v1/executions/${EXECUTION_ID}`)) {
+        return jsonResponse({ execution: EXECUTION_ROW, items: [] })
+      }
+      if (url.includes(`/api/v1/workflows/${WORKFLOW_ID}`)) {
+        return jsonResponse(WORKFLOW)
+      }
+      return jsonResponse({})
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const Page = await loadDetailRoute()
+    render(withClient(<Page />))
+    const toggle = await screen.findByRole('button', { name: /Config that ran/i })
+    // No version fetch should have fired yet.
+    expect(versionCalls.length).toBe(0)
+
+    await user.click(toggle)
+    await waitFor(() => expect(versionCalls.length).toBe(1))
+    // Pane now reveals the version number header.
+    expect(await screen.findByText(/v7/)).toBeInTheDocument()
   })
 
   it('copies the items JSON to the clipboard (AC-12)', async () => {
