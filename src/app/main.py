@@ -23,9 +23,11 @@ from app.api.v1.router import api_v1_router
 from app.api.v1.websites import register_website_handlers
 from app.api.v1.workflows import register_workflow_handlers
 from app.core.config import Settings, get_settings
-from app.core.database import dispose_engine
+from app.core.database import dispose_engine, get_session_factory
 from app.core.errors import _problem_response, register_exception_handlers
 from app.core.logging import configure_logging, get_logger, redact_headers
+from app.core.observability.flusher import MetricsFlusher
+from app.core.observability.registry import get_registry
 from app.core.startup_state import (
     assert_required_settings,
     mark_startup_complete,
@@ -52,7 +54,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         safe_headers = redact_headers(dict(request.headers))
         start_ns = time.perf_counter_ns()
         response = await call_next(request)
-        duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
+        elapsed_ns = time.perf_counter_ns() - start_ns
+        duration_ms = elapsed_ns // 1_000_000
+        duration_s = elapsed_ns / 1_000_000_000
 
         # Spec 0011 AC-3: bridge asgi-correlation-id into structlog
         # contextvars so this event carries the id without a per call
@@ -63,6 +67,33 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.clear_contextvars()
         cid = response.headers.get("x-request-id") or "-"
         structlog.contextvars.bind_contextvars(correlation_id=cid)
+
+        # Spec 0012 AC-1 / AC-2: observe the HTTP histogram + bump the counter.
+        # `route` must be the FastAPI path template, never the raw path, to
+        # keep label cardinality bounded. Starlette records the matched
+        # route under `request.scope["route"]` after routing resolves; it is
+        # missing for unmatched 404s, which we group under the literal
+        # "unmatched" bucket so a scan does not blow up cardinality on
+        # random paths. The scope key for a matched endpoint is
+        # `route.path` (templated), e.g. `/api/v1/executions/{execution_id}`.
+        matched_route: str
+        route_obj = request.scope.get("route")
+        if route_obj is not None and hasattr(route_obj, "path"):
+            matched_route = str(route_obj.path)
+        else:
+            matched_route = "unmatched"
+        status_class = f"{response.status_code // 100}xx"
+        registry = get_registry()
+        registry.http_request_duration_seconds.labels(
+            method=request.method,
+            route=matched_route,
+            status_class=status_class,
+        ).observe(duration_s)
+        registry.http_requests_total.labels(
+            method=request.method,
+            route=matched_route,
+            status_class=status_class,
+        ).inc()
 
         self._log.info(
             "request.completed",
@@ -118,6 +149,17 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.http_client = http_client
 
+    # Spec 0012 AC-4: periodic flusher that snapshots the prometheus registry
+    # and upserts per minute deltas into `metric_minute`. Always on in every
+    # environment per AC-12 (no feature flag).
+    flusher = MetricsFlusher(
+        session_factory=get_session_factory(),
+        interval_s=float(settings.metrics_flush_interval_s),
+        registry=get_registry(),
+    )
+    flusher.start()
+    app.state.metrics_flusher = flusher
+
     # Spec 0007 AC-12: `/health/ready` reports `startup: ok` only after this
     # flag flips. Set as the last step before yielding so a probe landing
     # mid startup still reads `fail`.
@@ -126,6 +168,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        await flusher.stop()
         await http_client.aclose()
         await dispose_engine()
         log.info("app.shutdown_started")

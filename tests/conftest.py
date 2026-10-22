@@ -36,6 +36,7 @@ from testcontainers.postgres import PostgresContainer
 # Importing the domain's models registers them on `Base.metadata` so
 # `create_all` builds every table/index this suite exercises. Add new domains
 # here as they land.
+import app.core.observability.models
 import app.domains.executions.models
 import app.domains.websites.models
 import app.domains.workflows.models  # noqa: F401
