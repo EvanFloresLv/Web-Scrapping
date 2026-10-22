@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.api.v1 import executions, extraction, health, websites, workflows
+from app.api.v1 import executions, extraction, health, metrics, websites, workflows
 from app.api.v1._meta import error_codes as meta_error_codes
 from app.core.auth import require_api_key
 
@@ -26,3 +26,4 @@ api_v1_router.include_router(websites.router, dependencies=_protected)
 api_v1_router.include_router(workflows.router, dependencies=_protected)
 api_v1_router.include_router(extraction.router, dependencies=_protected)
 api_v1_router.include_router(executions.router, dependencies=_protected)
+api_v1_router.include_router(metrics.router, dependencies=_protected)

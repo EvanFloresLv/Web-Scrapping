@@ -53,4 +53,8 @@ export const queryKeys = {
     list: (filters: Filters) => ['executions', filters] as const,
     detail: (id: string) => ['executions', id] as const,
   },
+  metrics: {
+    all: ['metrics'] as const,
+    query: (metrics: readonly string[], filters: Filters) => ['metrics', metrics, filters] as const,
+  },
 } as const

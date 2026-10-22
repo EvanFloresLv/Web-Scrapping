@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { to: '/targets', label: 'Targets' },
   { to: '/workflows', label: 'Workflows' },
   { to: '/executions', label: 'Executions' },
+  { to: '/metrics', label: 'Metrics' },
 ] as const
 
 export function AppShell() {

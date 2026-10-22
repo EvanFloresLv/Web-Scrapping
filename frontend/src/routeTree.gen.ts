@@ -13,6 +13,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
 import { Route as AuthedExecutionsRouteImport } from './routes/_authed.executions'
+import { Route as AuthedMetricsRouteImport } from './routes/_authed.metrics'
 import { Route as AuthedTargetsRouteImport } from './routes/_authed.targets'
 import { Route as AuthedWebsitesRouteImport } from './routes/_authed.websites'
 import { Route as AuthedWorkflowsRouteImport } from './routes/_authed.workflows'
@@ -43,6 +44,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
 const AuthedExecutionsRoute = AuthedExecutionsRouteImport.update({
   id: '/executions',
   path: '/executions',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMetricsRoute = AuthedMetricsRouteImport.update({
+  id: '/metrics',
+  path: '/metrics',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedTargetsRoute = AuthedTargetsRouteImport.update({
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/executions': typeof AuthedExecutionsRoute
+  '/metrics': typeof AuthedMetricsRoute
   '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
   '/workflows': typeof AuthedWorkflowsRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/executions': typeof AuthedExecutionsRoute
+  '/metrics': typeof AuthedMetricsRoute
   '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
   '/workflows': typeof AuthedWorkflowsRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/executions': typeof AuthedExecutionsRoute
+  '/_authed/metrics': typeof AuthedMetricsRoute
   '/_authed/targets': typeof AuthedTargetsRoute
   '/_authed/websites': typeof AuthedWebsitesRoute
   '/_authed/workflows': typeof AuthedWorkflowsRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/executions'
+    | '/metrics'
     | '/targets'
     | '/websites'
     | '/workflows'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/executions'
+    | '/metrics'
     | '/targets'
     | '/websites'
     | '/workflows'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/login'
     | '/_authed/executions'
+    | '/_authed/metrics'
     | '/_authed/targets'
     | '/_authed/websites'
     | '/_authed/workflows'
@@ -253,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/executions'
       fullPath: '/executions'
       preLoaderRoute: typeof AuthedExecutionsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/metrics': {
+      id: '/_authed/metrics'
+      path: '/metrics'
+      fullPath: '/metrics'
+      preLoaderRoute: typeof AuthedMetricsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/targets': {
@@ -373,6 +392,7 @@ const AuthedWorkflowsWorkflowIdRouteWithChildren =
 
 interface AuthedRouteChildren {
   AuthedExecutionsRoute: typeof AuthedExecutionsRoute
+  AuthedMetricsRoute: typeof AuthedMetricsRoute
   AuthedTargetsRoute: typeof AuthedTargetsRoute
   AuthedWebsitesRoute: typeof AuthedWebsitesRoute
   AuthedWorkflowsRoute: typeof AuthedWorkflowsRoute
@@ -384,6 +404,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedExecutionsRoute: AuthedExecutionsRoute,
+  AuthedMetricsRoute: AuthedMetricsRoute,
   AuthedTargetsRoute: AuthedTargetsRoute,
   AuthedWebsitesRoute: AuthedWebsitesRoute,
   AuthedWorkflowsRoute: AuthedWorkflowsRoute,

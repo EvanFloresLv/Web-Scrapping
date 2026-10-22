@@ -95,6 +95,34 @@ class Settings(BaseSettings):
         description="Filesystem path to the built SPA. Used only when `serve_admin_ui` is true.",
     )
 
+    # Metrics & operational dashboard (spec 0012 AC-12).
+    metrics_flush_interval_s: int = Field(
+        default=15,
+        ge=1,
+        le=59,
+        description=(
+            "How often the flusher writes bucket snapshots. Capped below 60 s so "
+            "one tick is always strictly inside one wall clock minute (spec 0012 "
+            "AC-4). Validated at startup, fail fast (spec 0001)."
+        ),
+    )
+    metrics_retention_days: int = Field(
+        default=7,
+        ge=1,
+        le=90,
+        description="How long rows stay in `metric_minute` before the retention task drops them.",
+    )
+    metrics_buffer_cap_minutes: int = Field(
+        default=15,
+        ge=1,
+        le=120,
+        description=(
+            "Minutes of pending per minute deltas the flusher holds in memory "
+            "through a Postgres outage before dropping the oldest minute (spec "
+            "0012 AC-5)."
+        ),
+    )
+
     @field_validator("log_levels", mode="before")
     @classmethod
     def _parse_log_levels(cls, value: Any) -> dict[str, str]:
