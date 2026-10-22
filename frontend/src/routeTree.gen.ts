@@ -16,7 +16,7 @@ import { Route as AuthedExecutionsRouteImport } from './routes/_authed.execution
 import { Route as AuthedTargetsRouteImport } from './routes/_authed.targets'
 import { Route as AuthedWebsitesRouteImport } from './routes/_authed.websites'
 import { Route as AuthedWorkflowsRouteImport } from './routes/_authed.workflows'
-import { Route as AuthedExecutionsExecutionIdRouteImport } from './routes/_authed.executions.$executionId'
+import { Route as AuthedExecutionsExecutionIdRouteImport } from './routes/_authed.executions_.$executionId'
 import { Route as AuthedWebsitesWebsiteIdRouteImport } from './routes/_authed.websites_.$websiteId'
 import { Route as AuthedWorkflowsWorkflowIdRouteImport } from './routes/_authed.workflows_.$workflowId'
 import { Route as AuthedWorkflowsWorkflowIdIndexRouteImport } from './routes/_authed.workflows_.$workflowId.index'
@@ -62,9 +62,9 @@ const AuthedWorkflowsRoute = AuthedWorkflowsRouteImport.update({
 } as any)
 const AuthedExecutionsExecutionIdRoute =
   AuthedExecutionsExecutionIdRouteImport.update({
-    id: '/$executionId',
-    path: '/$executionId',
-    getParentRoute: () => AuthedExecutionsRoute,
+    id: '/executions_/$executionId',
+    path: '/executions/$executionId',
+    getParentRoute: () => AuthedRoute,
   } as any)
 const AuthedWebsitesWebsiteIdRoute = AuthedWebsitesWebsiteIdRouteImport.update({
   id: '/websites_/$websiteId',
@@ -117,7 +117,7 @@ const AuthedWorkflowsWorkflowIdVersionsNewRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
-  '/executions': typeof AuthedExecutionsRouteWithChildren
+  '/executions': typeof AuthedExecutionsRoute
   '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
   '/workflows': typeof AuthedWorkflowsRoute
@@ -133,7 +133,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/executions': typeof AuthedExecutionsRouteWithChildren
+  '/executions': typeof AuthedExecutionsRoute
   '/targets': typeof AuthedTargetsRoute
   '/websites': typeof AuthedWebsitesRoute
   '/workflows': typeof AuthedWorkflowsRoute
@@ -151,12 +151,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
-  '/_authed/executions': typeof AuthedExecutionsRouteWithChildren
+  '/_authed/executions': typeof AuthedExecutionsRoute
   '/_authed/targets': typeof AuthedTargetsRoute
   '/_authed/websites': typeof AuthedWebsitesRoute
   '/_authed/workflows': typeof AuthedWorkflowsRoute
   '/_authed/': typeof AuthedIndexRoute
-  '/_authed/executions/$executionId': typeof AuthedExecutionsExecutionIdRoute
+  '/_authed/executions_/$executionId': typeof AuthedExecutionsExecutionIdRoute
   '/_authed/websites_/$websiteId': typeof AuthedWebsitesWebsiteIdRoute
   '/_authed/workflows_/$workflowId': typeof AuthedWorkflowsWorkflowIdRouteWithChildren
   '/_authed/workflows_/$workflowId/overview': typeof AuthedWorkflowsWorkflowIdOverviewRoute
@@ -209,7 +209,7 @@ export interface FileRouteTypes {
     | '/_authed/websites'
     | '/_authed/workflows'
     | '/_authed/'
-    | '/_authed/executions/$executionId'
+    | '/_authed/executions_/$executionId'
     | '/_authed/websites_/$websiteId'
     | '/_authed/workflows_/$workflowId'
     | '/_authed/workflows_/$workflowId/overview'
@@ -276,12 +276,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedWorkflowsRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/executions/$executionId': {
-      id: '/_authed/executions/$executionId'
-      path: '/$executionId'
+    '/_authed/executions_/$executionId': {
+      id: '/_authed/executions_/$executionId'
+      path: '/executions/$executionId'
       fullPath: '/executions/$executionId'
       preLoaderRoute: typeof AuthedExecutionsExecutionIdRouteImport
-      parentRoute: typeof AuthedExecutionsRoute
+      parentRoute: typeof AuthedRoute
     }
     '/_authed/websites_/$websiteId': {
       id: '/_authed/websites_/$websiteId'
@@ -342,17 +342,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthedExecutionsRouteChildren {
-  AuthedExecutionsExecutionIdRoute: typeof AuthedExecutionsExecutionIdRoute
-}
-
-const AuthedExecutionsRouteChildren: AuthedExecutionsRouteChildren = {
-  AuthedExecutionsExecutionIdRoute: AuthedExecutionsExecutionIdRoute,
-}
-
-const AuthedExecutionsRouteWithChildren =
-  AuthedExecutionsRoute._addFileChildren(AuthedExecutionsRouteChildren)
-
 interface AuthedWorkflowsWorkflowIdRouteChildren {
   AuthedWorkflowsWorkflowIdOverviewRoute: typeof AuthedWorkflowsWorkflowIdOverviewRoute
   AuthedWorkflowsWorkflowIdPreviewRoute: typeof AuthedWorkflowsWorkflowIdPreviewRoute
@@ -383,21 +372,23 @@ const AuthedWorkflowsWorkflowIdRouteWithChildren =
   )
 
 interface AuthedRouteChildren {
-  AuthedExecutionsRoute: typeof AuthedExecutionsRouteWithChildren
+  AuthedExecutionsRoute: typeof AuthedExecutionsRoute
   AuthedTargetsRoute: typeof AuthedTargetsRoute
   AuthedWebsitesRoute: typeof AuthedWebsitesRoute
   AuthedWorkflowsRoute: typeof AuthedWorkflowsRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedExecutionsExecutionIdRoute: typeof AuthedExecutionsExecutionIdRoute
   AuthedWebsitesWebsiteIdRoute: typeof AuthedWebsitesWebsiteIdRoute
   AuthedWorkflowsWorkflowIdRoute: typeof AuthedWorkflowsWorkflowIdRouteWithChildren
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
-  AuthedExecutionsRoute: AuthedExecutionsRouteWithChildren,
+  AuthedExecutionsRoute: AuthedExecutionsRoute,
   AuthedTargetsRoute: AuthedTargetsRoute,
   AuthedWebsitesRoute: AuthedWebsitesRoute,
   AuthedWorkflowsRoute: AuthedWorkflowsRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedExecutionsExecutionIdRoute: AuthedExecutionsExecutionIdRoute,
   AuthedWebsitesWebsiteIdRoute: AuthedWebsitesWebsiteIdRoute,
   AuthedWorkflowsWorkflowIdRoute: AuthedWorkflowsWorkflowIdRouteWithChildren,
 }

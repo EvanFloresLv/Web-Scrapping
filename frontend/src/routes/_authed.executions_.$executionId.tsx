@@ -36,7 +36,7 @@ type WorkflowRead = components['schemas']['WorkflowRead']
 type WorkflowVersionRead = components['schemas']['WorkflowVersionRead']
 type ExecutionItem = components['schemas']['ExecutionItem']
 
-export const Route = createFileRoute('/_authed/executions/$executionId')({
+export const Route = createFileRoute('/_authed/executions_/$executionId')({
   validateSearch: () => ({}),
   component: ExecutionDetailPage,
 })
