@@ -68,6 +68,24 @@ class WorkflowReadPort(Protocol):
         """
         ...
 
+    async def get_workflow_ids_for_versions(
+        self,
+        version_ids: list[UUID],
+        *,
+        with_deleted: bool = False,
+    ) -> dict[UUID, UUID]:
+        """Batched variant of `get_workflow_id_for_version` for the list route.
+
+        Returns a `{version_id: workflow_id}` mapping for every version id
+        that resolves to a parent workflow. By default soft deleted
+        workflows are excluded; `with_deleted=True` includes them so the
+        list route can render rows the operator opted into (spec 0010 AC-4).
+        Missing version ids are simply absent from the mapping. Spec 0010
+        AC-1 uses this to denormalise `workflow_id` onto each list row
+        without issuing N queries.
+        """
+        ...
+
 
 __all__ = [
     "VersionSummary",

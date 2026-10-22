@@ -198,6 +198,28 @@ class ExecutionService:
             raise ExecutionNotFoundError(f"execution {execution_id} not found")
         return execution, workflow_id
 
+    async def list_page(
+        self,
+        filters: Any,  # ExecutionListFilters, kept Any to avoid circular import
+        *,
+        cursor: Any,  # Cursor | None
+        page_size: int,
+    ) -> tuple[list[Execution], dict[UUID, UUID]]:
+        """Return a page of executions + the `{version_id: workflow_id}` map
+        to denormalise `workflow_id` onto each row (spec 0010 AC-1).
+
+        The service layer stays the single caller point: the router asks for
+        the page here, the service hands back rows plus the resolution map
+        in one shot. No per row lookup from the router.
+        """
+        rows = await self._executions.list_page(filters, cursor=cursor, page_size=page_size)
+        version_ids = sorted({r.workflow_version_id for r in rows})
+        workflow_ids = await self._workflows.get_workflow_ids_for_versions(
+            version_ids,
+            with_deleted=filters.with_deleted,
+        )
+        return rows, workflow_ids
+
     # ---- helpers --------------------------------------------------------
 
     async def _resolve_version(

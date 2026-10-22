@@ -82,5 +82,27 @@ class WorkflowReadAdapter(WorkflowReadPort):
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def get_workflow_ids_for_versions(
+        self,
+        version_ids: list[UUID],
+        *,
+        with_deleted: bool = False,
+    ) -> dict[UUID, UUID]:
+        """Spec 0010 AC-1: one query, one round trip, N rows."""
+        if not version_ids:
+            return {}
+        stmt = (
+            select(WorkflowVersion.id, WorkflowVersion.workflow_id)
+            .join(
+                ScrapingWorkflow,
+                ScrapingWorkflow.id == WorkflowVersion.workflow_id,
+            )
+            .where(WorkflowVersion.id.in_(version_ids))
+        )
+        if not with_deleted:
+            stmt = stmt.where(ScrapingWorkflow.deleted_at.is_(None))
+        rows = (await self._session.execute(stmt)).all()
+        return dict(rows)
+
 
 __all__ = ["WorkflowReadAdapter"]

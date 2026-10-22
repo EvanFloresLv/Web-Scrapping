@@ -37,3 +37,16 @@ repos:
           - "jsonschema>=4.23.0"
         args: ["--config-file=pyproject.toml"]
         files: ^src/
+
+  # Spec 0008 AC-13: run Biome via lint-staged on staged frontend files only.
+  # Staging only backend files leaves this hook as a no-op (lint-staged is a
+  # noop when nothing matches its glob). Using the Python pre-commit as the
+  # single entry point avoids clobbering `.git/hooks` the way Husky would.
+  - repo: local
+    hooks:
+      - id: frontend-lint-staged
+        name: frontend lint-staged (Biome)
+        language: system
+        entry: pnpm --dir frontend lint-staged
+        pass_filenames: false
+        files: ^frontend/.+\.(ts|tsx|js|jsx|json|css)$

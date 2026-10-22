@@ -14,6 +14,7 @@ from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from app.api.spa import mount_spa_router
 from app.api.v1.executions import register_execution_handlers
 from app.api.v1.extraction import register_extraction_handlers
 from app.api.v1.router import api_v1_router
@@ -22,8 +23,37 @@ from app.api.v1.workflows import register_workflow_handlers
 from app.core.config import Settings, get_settings
 from app.core.database import dispose_engine
 from app.core.errors import _problem_response, register_exception_handlers
-from app.core.logging import configure_logging, get_logger
-from app.core.startup_state import mark_startup_complete, reset_for_tests
+from app.core.logging import configure_logging, get_logger, redact_headers
+from app.core.startup_state import (
+    assert_required_settings,
+    mark_startup_complete,
+    reset_for_tests,
+)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Emit a structlog event per request with the headers redacted.
+
+    Spec 0008 AC-18: `x-api-key` and `authorization` are replaced with
+    `"<redacted>"` before serialisation so a captured admin API key cannot
+    land in logs. Lives in `app.core.logging.SENSITIVE_REQUEST_HEADERS`.
+    """
+
+    def __init__(self, app: object) -> None:
+        super().__init__(app)  # type: ignore[arg-type]
+        self._log = get_logger("app.request")
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        safe_headers = redact_headers(dict(request.headers))
+        response = await call_next(request)
+        self._log.info(
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            headers=safe_headers,
+        )
+        return response
 
 
 class RequestBodySizeLimitMiddleware(BaseHTTPMiddleware):
@@ -81,6 +111,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the FastAPI app. Call this from entrypoints (uvicorn, tests)."""
     settings = settings or get_settings()
+    assert_required_settings(settings)
     configure_logging(settings)
     # Each `create_app` call represents a fresh process (tests spin many); reset
     # the per worker startup gate so the next `_lifespan` enters it as False.
@@ -104,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         validator=None,
     )
     app.add_middleware(RequestBodySizeLimitMiddleware, max_bytes=settings.request_body_max_bytes)
+    app.add_middleware(RequestLoggingMiddleware)
 
     register_exception_handlers(app)
     register_website_handlers(app)
@@ -112,6 +144,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_execution_handlers(app)
 
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+
+    # Spec 0008 AC-10: SPA mount registered LAST so it never shadows a
+    # backend route; no op unless `SERVE_ADMIN_UI` is true and the built
+    # SPA is on disk.
+    mount_spa_router(app, settings)
 
     return app
 

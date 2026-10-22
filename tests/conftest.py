@@ -12,7 +12,12 @@ Two layers:
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
+
+# Set BEFORE any `app.*` import so `Settings()` without an explicit key reads
+# a valid value from the environment (spec 0008 requires one at startup).
+os.environ.setdefault("ADMIN_API_KEY", "test-admin-api-key-0123456789")
 
 import pytest
 import pytest_asyncio
@@ -90,9 +95,16 @@ def _override_get_session_factory() -> _StubSessionFactory:
     return _StubSessionFactory()
 
 
+TEST_ADMIN_API_KEY = "test-admin-api-key-0123456789"
+
+
 @pytest.fixture
 def test_settings() -> Settings:
-    return Settings(environment="test", log_json=False)
+    return Settings(
+        environment="test",
+        log_json=False,
+        admin_api_key=TEST_ADMIN_API_KEY,
+    )
 
 
 @pytest_asyncio.fixture
@@ -191,7 +203,11 @@ async def api_client(
     app.dependency_overrides[get_http_client] = _override_http_client
     mark_startup_complete()
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-API-Key": TEST_ADMIN_API_KEY},
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
     await outbound.aclose()

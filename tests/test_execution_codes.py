@@ -39,7 +39,8 @@ def test_agent_shell_stays_empty_until_its_slice() -> None:
 
 
 def test_feature_7_execution_codes_present() -> None:
-    # covers: spec 0006 AC-10 (feature 7 populates execution.*)
+    # covers: spec 0006 AC-10 (feature 7 populates execution.*),
+    # spec 0010 AC-2/AC-3 (feature 11 extends with the list endpoint codes).
     expected = {
         "execution.workflow_not_runnable",
         "execution.version_not_published",
@@ -48,6 +49,8 @@ def test_feature_7_execution_codes_present() -> None:
         "execution.invalid_execute_body",
         "execution.terminal_persist_failed",
         "execution.not_found",
+        "execution.invalid_cursor",
+        "execution.invalid_list_query",
     }
     assert {c.value for c in reg.ExecutionErrorCode} == expected
     for code in reg.ExecutionErrorCode:

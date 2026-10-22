@@ -22,8 +22,8 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 6 | Deterministic HTML extraction (static) | Slice 1 (MVP) | done |
 | 7 | Workflow execution endpoint (sync) | Slice 1 (MVP) | in-progress |
 | 8 | Structured errors & health endpoints | Slice 1 (MVP) | done |
-| 9 | Admin UI foundation | Slice 2 (Admin UI) | planned |
-| 10 | Workflow configuration screens | Slice 2 (Admin UI) | planned |
+| 9 | Admin UI foundation | Slice 2 (Admin UI) | in-progress |
+| 10 | Workflow configuration screens | Slice 2 (Admin UI) | in-progress |
 | 11 | Execution browser | Slice 2 (Admin UI) | planned |
 | 12 | Structured logging & correlation | Slice 3 (Observability) | planned |
 | 13 | Metrics & operational dashboard | Slice 3 (Observability) | planned |
@@ -164,20 +164,49 @@ Spec [0007](../specs/0007-structured-errors-and-health.md) · code in `src/app/c
 
 ## Slice 2: Admin UI
 
-### 9. Admin UI foundation · needs a decision
+### 9. Admin UI foundation
 Pick the UI stack and ship a minimal shell (navigation, auth-aware layout, design primitives) that later screens plug into.
 **Done when:** the UI boots locally, authenticates against the API (even with a dev key), and renders empty-state screens for workflows and executions.
-- [ ] Design it (spec): `/architect admin UI foundation`
+- [x] Design it (spec): `/architect admin UI foundation`
+- [ ] Build it: `/develop admin UI foundation`
+  - [x] Backend auth stub + config + log redaction: `require_api_key` dependency, `ADMIN_API_KEY` / `SERVE_ADMIN_UI` / `ADMIN_UI_DIST_PATH` settings, `AdminUIUnauthenticated` error, startup assertion, structlog header deny list (satisfies AC-9, AC-18 backend half)
+  - [x] Frontend scaffold + bootstrap: `frontend/` with Vite 7 + React 19 + TS 5.9 strict + Biome 2 + lint-staged + Tailwind 4 + shadcn primitives, Vite proxy covering `/api` + `/health` + `/docs` + `/redoc` + `/openapi.json`, pinned `pnpm@10.13.0`, Node 22 (`.nvmrc`), README corepack setup (satisfies AC-1, AC-11, AC-13 wiring, AC-15, AC-17). Deviation: using the existing Python pre-commit as the single hook entry point (lint-staged runs as a `local` hook) instead of Husky, to avoid clobbering `.git/hooks` set by the backend's `pre-commit install`.
+  - [x] API client, Problem Details, auth shell: `pnpm gen:api` → `schema.d.ts`, shared `apiFetch` wrapper (X-API-Key injection + Problem Details parsing + RHF `errors[].loc` → `setError` + gated single-shot 401 redirect), synchronous Zustand `authStore` with `isHydrated`, `/login` with pre-store probe + inline rejection, TanStack Router protected `beforeLoad` + whitelisted `redirect` param (satisfies AC-2, AC-3, AC-4, AC-8, AC-16, AC-19)
+  - [x] Layout, theme, shell: AppShell (sidebar + header + sign out), shadcn primitives (Button, Card, Input, Label, Table, Separator, DropdownMenu), `themeStore` + `ThemeApplier` with light/dark/system + `prefers-color-scheme` reactivity, four stub routes under `/_authed/` (satisfies AC-5, AC-14; AC-6 + AC-7 land in M5)
+  - [x] Screens + placeholders: `/websites` wired to `GET /api/v1/websites` via TanStack Query (columns derived from the generated OpenAPI types, empty state card when no rows); `/targets` renders the empty state card today (backend has no top-level `/api/v1/targets` yet, deviation noted); `/workflows` and `/executions` static placeholders (AC-6, AC-7). Route error boundary on `__root` renders `ApiError.code` / `.title` / `.detail` / `.correlation_id`.
+  - [x] Tests, pre-commit, production serve: Vitest + Testing Library (5 unit tests across `apiFetch` and the Websites screen empty state) + Playwright chromium smoke (sign in → `/websites` → theme toggle → sign out → back on `/login`, with `page.route` redacting `X-API-Key` from traces); lint-staged bridged via the Python pre-commit `local` hook `frontend-lint-staged`; FastAPI SPA router mounted LAST in `create_app` behind `SERVE_ADMIN_UI` with reserved-prefix fallthrough (`/api/`, `/health/`, `/docs`, `/redoc`, `/openapi.json`, `/assets/`), `Accept: text/html` gate, dedicated `/assets/` `StaticFiles` mount; README documents corepack + Node 22 setup. Satisfies AC-10, AC-11, AC-12, AC-13, AC-18 frontend half.
+- [x] Verify it: `/check verify admin UI foundation`
+- [x] Test it: `/test admin UI foundation`
+Spec [0008](../specs/0008-admin-ui-foundation/index.md)
 
-### 10. Workflow configuration screens · needs a decision
+### 10. Workflow configuration screens
 UI to register websites and targets, create and edit workflow versions, and preview extraction output on a sample URL.
 **Done when:** a user can create a workflow end-to-end from the UI and run a preview that returns the extracted sample.
-- [ ] Design it (spec): `/architect workflow configuration screens`
+- [x] Design it (spec): `/architect workflow configuration screens`
+- [x] Build it: `/develop workflow configuration screens`
+  - [x] Websites + Targets CRUD screens with shared list/Sheet/search-param primitives (satisfies AC-1, AC-2, AC-3, AC-4, AC-19, AC-20)
+  - [x] Workflows list, create, and detail page with Overview tab + optimistic status toggle (satisfies AC-5, AC-6, AC-7, AC-8)
+  - [x] Versions tab + Publish/Archive/Delete lifecycle actions with every 409 handler (satisfies AC-9, AC-14, AC-15, AC-16)
+  - [x] Version editor route (/versions/new + /versions/:vid) with structured fields form + CodeMirror panes + full-config Save (satisfies AC-10, AC-11, AC-12, AC-13)
+  - [x] Preview panel, end-to-end Playwright smoke, Vitest coverage of 409/empty/dirty gates (satisfies AC-17, AC-18)
+- [x] Verify it: `/check verify workflow configuration screens`
+- [x] Test it: `/test workflow configuration screens`
+Spec [0009](../specs/0009-workflow-configuration-screens/index.md) · code in `frontend/src/`
 
-### 11. Execution browser · needs a decision
-Browse executions with filters (workflow, status, time range), open a run to see its input, output, errors, and timings.
-**Done when:** the list paginates, filters work, and a run detail view renders JSON output, error reasons, and timing.
-- [ ] Design it (spec): `/architect execution browser`
+### 11. Execution browser
+Browse executions with filters (workflow, status, time range, target URL, website, correlation id), open a run to see its items, timings, error, and the config version that ran.
+**Done when:** the list paginates (cursor), filters work, and a run detail view renders the items table, raw JSON, error reasons, timing, and the config snapshot.
+- [x] Design it (spec): `/architect execution browser`
+- [x] Build it: `/develop execution browser`
+  - [x] Alembic migration (`ix_executions_correlation_id`) + list repository + cursor codec (satisfies AC-6, scaffolds AC-1, AC-2)
+  - [x] `GET /api/v1/executions` list endpoint with filters, cursor pagination, `with_deleted` gate, website join (satisfies AC-1, AC-2, AC-3, AC-4, AC-5)
+  - [x] `/executions` list screen scaffolding with URL-synced search params, columns, pagination controls (satisfies AC-7, AC-8 partial, AC-14 partial, AC-16)
+  - [x] FilterBar (workflow / status / target / website / correlation id / time range) + parent workflow name resolution via `useQueries` (satisfies AC-8, AC-9)
+  - [x] `/executions/:id` detail route with items table + raw JSON + Copy JSON + config snapshot pane (satisfies AC-11, AC-12, AC-13, AC-14)
+  - [x] Auto refresh (conditional refetchInterval) + Problem Details propagation + vitest (satisfies AC-10, AC-15)
+- [x] Verify it: `/check verify execution browser`
+- [x] Test it: `/test execution browser`
+Spec [0010](../specs/0010-execution-browser/index.md) · code in `src/app/domains/executions/` + `src/app/api/v1/executions.py` + `frontend/src/`
 
 ## Slice 3: Observability
 

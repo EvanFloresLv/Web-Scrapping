@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+.vite
+.env.local
+.env.*.local
+*.log
+coverage
+.DS_Store
+playwright-report
+test-results
+.vitest-cache

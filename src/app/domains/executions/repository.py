@@ -16,15 +16,37 @@ whose root workflow is soft deleted (joined through
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.domains.executions.cursor import Cursor
 from app.domains.executions.enums import ExecutionStatus
 from app.domains.executions.models import Execution, ExecutionResult
+
+
+@dataclass(frozen=True)
+class ExecutionListFilters:
+    """Filter bundle for the execution browser list (spec 0010 AC-3).
+
+    Every field is optional and independently combinable; `None` means
+    "do not filter on this axis". `with_deleted` default is `False`
+    (hide executions whose parent workflow is soft deleted, spec 0010 AC-4).
+    """
+
+    workflow_id: UUID | None = None
+    status: ExecutionStatus | None = None
+    target_url_id: UUID | None = None
+    website_id: UUID | None = None
+    correlation_id: str | None = None
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+    with_deleted: bool = False
 
 
 class ExecutionRepository(Protocol):
@@ -66,6 +88,22 @@ class ExecutionRepository(Protocol):
         """List executions in a given status, newest first."""
         ...
 
+    async def list_page(
+        self,
+        filters: ExecutionListFilters,
+        *,
+        cursor: Cursor | None,
+        page_size: int,
+    ) -> list[Execution]:
+        """Return at most `page_size` executions matching every set filter,
+        newest first on `(created_at DESC, id DESC)`.
+
+        When `cursor` is set, the keyset predicate `(created_at, id) < (c, i)`
+        restricts the result to rows strictly older than the cursor row,
+        tie broken by `id` so the sort has a total order.
+        """
+        ...
+
     async def add(self, execution: Execution) -> None:
         """Insert a new execution row in `pending` or `running`."""
         ...
@@ -95,6 +133,39 @@ class ExecutionResultRepository(Protocol):
 # ---------------------------------------------------------------------------
 # Concrete implementations (spec 0006 AC-14)
 # ---------------------------------------------------------------------------
+
+
+def _apply_workflow_or_website_filter(  # type: ignore[no-untyped-def]
+    stmt,
+    *,
+    workflow_id: UUID | None,
+    website_id: UUID | None,
+):
+    """Scope the executions query by `workflow_id` and/or `website_id`.
+
+    Spec 0010 AC-5: the join path is
+    `executions.workflow_version_id -> workflow_versions.workflow_id ->
+    scraping_workflows.id -> scraping_workflows.website_id`. We express it
+    as a correlated EXISTS so this domain doesn't import workflow ORM
+    classes (keeps the `import-linter` boundary intact).
+    """
+    from sqlalchemy import text as _text
+
+    conditions = ["wv.id = executions.workflow_version_id"]
+    params: dict[str, object] = {}
+    if workflow_id is not None:
+        conditions.append("wv.workflow_id = :__wf_id")
+        params["__wf_id"] = workflow_id
+    if website_id is not None:
+        conditions.append("sw.website_id = :__site_id")
+        params["__site_id"] = website_id
+    where = " AND ".join(conditions)
+    exists_sql = _text(
+        "EXISTS (SELECT 1 FROM workflow_versions wv "
+        "JOIN scraping_workflows sw ON sw.id = wv.workflow_id "
+        f"WHERE {where})"
+    ).bindparams(**params)
+    return stmt.where(exists_sql)
 
 
 def _live_workflow_join(stmt, with_deleted: bool):  # type: ignore[no-untyped-def]
@@ -187,6 +258,42 @@ class SqlAlchemyExecutionRepository:
         stmt = _live_workflow_join(stmt, with_deleted)
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def list_page(
+        self,
+        filters: ExecutionListFilters,
+        *,
+        cursor: Cursor | None,
+        page_size: int,
+    ) -> list[Execution]:
+        """Spec 0010 AC-1, AC-2, AC-3, AC-4, AC-5, AC-6."""
+        stmt = select(Execution).order_by(
+            Execution.created_at.desc(),
+            Execution.id.desc(),
+        )
+        if filters.status is not None:
+            stmt = stmt.where(Execution.status == filters.status.value)
+        if filters.target_url_id is not None:
+            stmt = stmt.where(Execution.target_url_id == filters.target_url_id)
+        if filters.correlation_id is not None:
+            stmt = stmt.where(Execution.correlation_id == filters.correlation_id)
+        if filters.created_from is not None:
+            stmt = stmt.where(Execution.created_at >= filters.created_from)
+        if filters.created_to is not None:
+            stmt = stmt.where(Execution.created_at < filters.created_to)
+        if filters.workflow_id is not None or filters.website_id is not None:
+            stmt = _apply_workflow_or_website_filter(
+                stmt,
+                workflow_id=filters.workflow_id,
+                website_id=filters.website_id,
+            )
+        if cursor is not None:
+            stmt = stmt.where(
+                tuple_(Execution.created_at, Execution.id) < (cursor.created_at, cursor.id),
+            )
+        stmt = _live_workflow_join(stmt, filters.with_deleted)
+        stmt = stmt.limit(page_size)
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def add(self, execution: Execution) -> None:
         """Insert a new execution. The service commits (AC-5 step 1)."""
         self._session.add(execution)
@@ -231,6 +338,7 @@ class SqlAlchemyExecutionResultRepository:
 
 
 __all__ = [
+    "ExecutionListFilters",
     "ExecutionRepository",
     "ExecutionResultRepository",
     "SqlAlchemyExecutionRepository",

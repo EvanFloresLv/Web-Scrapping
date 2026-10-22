@@ -8,7 +8,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,8 +59,49 @@ class Settings(BaseSettings):
         description="Per check timeout for /health/ready; a check exceeding this is `fail`.",
     )
 
+    # Admin UI foundation (spec 0008).
+    admin_api_key: str = Field(
+        description=(
+            "Single API key the admin UI must present via X-API-Key. "
+            "Required at startup; the app refuses to boot without a value "
+            "that is non blank and at least 16 characters long (spec 0008 AC-9)."
+        ),
+    )
+    serve_admin_ui: bool = Field(
+        default=False,
+        description=(
+            "When true, FastAPI mounts the built SPA at `/` behind the SPA "
+            "router (spec 0008 AC-10). Dev leaves this false so Vite owns "
+            "the browser; container builds set it to true."
+        ),
+    )
+    admin_ui_dist_path: str = Field(
+        default="frontend/dist",
+        description="Filesystem path to the built SPA. Used only when `serve_admin_ui` is true.",
+    )
+
+    @field_validator("admin_api_key")
+    @classmethod
+    def _validate_admin_api_key(cls, value: str) -> str:
+        """Spec 0008: reject empty or whitespace only; require length >= 16."""
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(
+                "ADMIN_API_KEY must be set to a non blank value (spec 0008 Security model)."
+            )
+        if len(stripped) < 16:
+            raise ValueError(
+                "ADMIN_API_KEY must be at least 16 characters long (spec 0008 Security model)."
+            )
+        return stripped
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return the process-wide settings singleton."""
-    return Settings()
+    """Return the process-wide settings singleton.
+
+    `Settings()` loads values from `.env` and environment variables (via
+    `pydantic-settings`); the required-but-defaultless fields such as
+    `admin_api_key` are populated that way, which mypy cannot see.
+    """
+    return Settings()  # type: ignore[call-arg]
