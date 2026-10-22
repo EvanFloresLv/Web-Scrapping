@@ -225,10 +225,7 @@ async def test_ready_reports_mismatch_when_alembic_head_differs(pg_engine: Async
     factory = async_sessionmaker(bind=pg_engine, expire_on_commit=False)
     async with factory() as s:
         await s.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS alembic_version "
-                "(version_num VARCHAR(32) PRIMARY KEY)"
-            )
+            text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         await s.execute(text("DELETE FROM alembic_version"))
         await s.execute(text("INSERT INTO alembic_version (version_num) VALUES ('stale-head')"))
@@ -247,10 +244,7 @@ async def test_ready_reports_mismatch_when_alembic_row_missing(pg_engine: AsyncE
     factory = async_sessionmaker(bind=pg_engine, expire_on_commit=False)
     async with factory() as s:
         await s.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS alembic_version "
-                "(version_num VARCHAR(32) PRIMARY KEY)"
-            )
+            text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         await s.execute(text("DELETE FROM alembic_version"))
         await s.commit()

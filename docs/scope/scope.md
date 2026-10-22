@@ -25,7 +25,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 9 | Admin UI foundation | Slice 2 (Admin UI) | in-progress |
 | 10 | Workflow configuration screens | Slice 2 (Admin UI) | in-progress |
 | 11 | Execution browser | Slice 2 (Admin UI) | planned |
-| 12 | Structured logging & correlation | Slice 3 (Observability) | planned |
+| 12 | Structured logging & correlation | Slice 3 (Observability) | done |
 | 13 | Metrics & operational dashboard | Slice 3 (Observability) | planned |
 | 14 | Langfuse agent tracing scaffold | Slice 3 (Observability) | planned |
 | 15 | LLM provider abstraction & prompt versioning | Slice 4 (Agentic AI) | planned |
@@ -210,10 +210,18 @@ Spec [0010](../specs/0010-execution-browser/index.md) · code in `src/app/domain
 
 ## Slice 3: Observability
 
-### 12. Structured logging & correlation · needs a decision
+### 12. Structured logging & correlation
 JSON logs across the API, workers, and extractors with a correlation id propagated per request and per execution.
 **Done when:** every API request and execution emits start/complete/error log events sharing a correlation id; log levels are configurable per module.
-- [ ] Design it (spec): `/architect structured logging & correlation`
+- [x] Design it (spec): `/architect structured logging & correlation`
+- [x] Build it: `/develop structured logging & correlation`
+  - [x] Config + processor set in `src/app/core/logging.py`: `redact_sensitive_keys` processor, `safe_render` wrapper, default `correlation_id="-"` processor, `LOG_LEVELS` setting + per-logger wiring (satisfies AC-2, AC-5, AC-6, AC-10)
+  - [x] Execution contextvar binding: wrap `ExecutionService.execute` body in `structlog.contextvars.bound_contextvars(correlation_id=..., execution_id=...)` and drop the per-call kwargs on existing events (satisfies AC-4)
+  - [x] Catalogue conformance apply pass: rename bare `startup`/`shutdown` to `app.startup_completed`/`app.shutdown_started`, align every event in `main.py` + `domains/extraction/service.py` + `domains/executions/service.py` with the canonical catalogue (catalogue wins on name conflicts) (satisfies AC-1, AC-9, AC-12)
+  - [x] Test fixture + coverage: `caplog_structlog` pytest fixture, per-domain event tests, no-body check, access-log check (satisfies AC-3, AC-7, AC-8, AC-11)
+- [x] Verify it: `/check verify structured logging & correlation`
+- [x] Test it: `/test structured logging & correlation`
+Spec [0011](../specs/0011-structured-logging-and-correlation/index.md)
 
 ### 13. Metrics & operational dashboard · needs a decision
 Expose core metrics (request rate, latency percentiles, error rate, extraction success rate, per-domain throttling) and render an operational view in the admin UI.
