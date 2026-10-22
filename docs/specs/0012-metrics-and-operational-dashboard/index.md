@@ -1,6 +1,6 @@
 # 0012 — Metrics & operational dashboard
 
-**Status**: Proposed
+**Status**: In Progress
 **Date**: 2026-10-22
 **Mode**: FEATURE
 **Scope feature**: 13 (Slice 3: Observability)
