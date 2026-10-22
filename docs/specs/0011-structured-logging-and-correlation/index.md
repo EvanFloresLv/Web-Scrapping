@@ -127,6 +127,11 @@ Every event the platform emits today. Each row names the emitter and the typical
 | `extraction.validate_completed` | `ExtractionService.run` | `duration_ms`, `valid` |
 | `extraction.item_extracted` | `ExtractionService.run` (DEBUG) | `item_index`, `field_count` |
 | `extraction.failed` | `ExtractionService._fail` | `duration_ms`, `error_code`, `error_type`, `error_msg` |
+| `metrics.flush_completed` | `MetricsFlusher._tick` | `rows_written`, `duration_ms` |
+| `metrics.flush_failed` | `MetricsFlusher._tick` on DB error | `error_type`, `error_msg`, `pending_minutes`, `duration_ms` |
+| `metrics.buffer_overflow` | `MetricsFlusher._buffer_rows` on cap trip | `dropped_minutes` |
+| `metrics.retention_completed` | `MetricsRetention._sweep` | `rows_deleted`, `cutoff`, `duration_ms` |
+| `metrics.retention_failed` | `MetricsRetention._run` on DB error | `error_type`, `error_msg` |
 | `log.emission_failed` | `safe_render` fallback | `error_type`, `error_msg` |
 
 A new event emitted by a later feature slice MUST land in this catalogue via a spec update (either amending 0011 or a spec that supersedes it in part).

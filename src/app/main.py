@@ -28,6 +28,7 @@ from app.core.errors import _problem_response, register_exception_handlers
 from app.core.logging import configure_logging, get_logger, redact_headers
 from app.core.observability.flusher import MetricsFlusher
 from app.core.observability.registry import get_registry
+from app.core.observability.retention import MetricsRetention
 from app.core.startup_state import (
     assert_required_settings,
     mark_startup_complete,
@@ -155,10 +156,19 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     flusher = MetricsFlusher(
         session_factory=get_session_factory(),
         interval_s=float(settings.metrics_flush_interval_s),
+        buffer_cap_minutes=settings.metrics_buffer_cap_minutes,
         registry=get_registry(),
     )
     flusher.start()
     app.state.metrics_flusher = flusher
+
+    # Spec 0012 AC-4: daily retention sweep.
+    retention = MetricsRetention(
+        session_factory=get_session_factory(),
+        retention_days=settings.metrics_retention_days,
+    )
+    retention.start()
+    app.state.metrics_retention = retention
 
     # Spec 0007 AC-12: `/health/ready` reports `startup: ok` only after this
     # flag flips. Set as the last step before yielding so a probe landing
@@ -168,6 +178,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        await retention.stop()
         await flusher.stop()
         await http_client.aclose()
         await dispose_engine()

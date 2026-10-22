@@ -229,7 +229,7 @@ Expose core metrics (request rate, latency percentiles, error rate, extraction s
 - [x] Design it (spec): `/architect metrics & operational dashboard`
 - [ ] Build it: `/develop metrics & operational dashboard`
   - [x] M1 HTTP latency end-to-end: settings + `metric_minute` migration + `prometheus-client` registry + `RequestLoggingMiddleware` instrumentation + flusher + lifespan wiring + `GET /api/v1/metrics/query` + `/metrics` SPA route with the Request-latency panel (satisfies AC-1 HTTP, AC-2 HTTP, AC-3, AC-4, AC-6, AC-7 partial, AC-10, AC-12)
-  - [ ] M2 Widen to extraction + execution: promote `app.core.observability.metrics` helpers to real `prometheus-client` instruments + add the remaining three Recharts panels + toolbar (satisfies AC-1 full, AC-2 full, AC-7 full)
+  - [x] M2 Widen to extraction + execution: promote `app.core.observability.metrics` helpers to real `prometheus-client` instruments + add the remaining three Recharts panels + toolbar (satisfies AC-1 full, AC-2 full, AC-7 full)
   - [ ] M3 Operational hardening: flusher failure safety + buffer cap + retention task + self-observability log events (extend spec 0011 catalogue) + dashboard empty state (satisfies AC-5, AC-8, AC-11)
   - [ ] M4 Deep link: dashboard URL state (`?workflow_id=`) + run-detail `View metrics` link (satisfies AC-9)
 - [ ] Verify it: `/check verify metrics & operational dashboard`

@@ -192,35 +192,108 @@ class MetricsFlusher:
         *,
         session_factory: async_sessionmaker[Any],
         interval_s: float,
+        buffer_cap_minutes: int = 15,
         registry: MetricsRegistry | None = None,
         now: Any = None,
     ) -> None:
         self._session_factory = session_factory
         self._interval_s = interval_s
+        self._buffer_cap_minutes = buffer_cap_minutes
         self._registry = registry or get_registry()
         self._now = now or (lambda: datetime.now(tz=UTC))
         self._previous = _Snapshot()
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
+        # Spec 0012 AC-5: ordered FIFO of per minute deltas that could not be
+        # upserted. The key `(bucket_start, metric_name, labels_json)` lets a
+        # retry merge with later deltas for the same minute without double
+        # counting. The retry sum lands on the DB side via the upsert's
+        # `DO UPDATE ... = EXCLUDED + metric_minute.*`.
+        self._pending: dict[tuple[datetime, str, str], MetricRow] = {}
+        self._in_overflow_episode: bool = False
+
+    def _buffer_rows(self, rows: list[MetricRow]) -> None:
+        """Merge the given rows into the pending FIFO; drop oldest minutes on overflow."""
+        for row in rows:
+            key = (
+                row.bucket_start,
+                row.metric_name,
+                json.dumps(row.labels, sort_keys=True, separators=(",", ":")),
+            )
+            existing = self._pending.get(key)
+            if existing is None:
+                self._pending[key] = row
+                continue
+            self._pending[key] = MetricRow(
+                bucket_start=row.bucket_start,
+                metric_name=row.metric_name,
+                labels=row.labels,
+                count=existing.count + row.count,
+                sum_value=existing.sum_value + row.sum_value,
+                le_50ms=existing.le_50ms + row.le_50ms,
+                le_100ms=existing.le_100ms + row.le_100ms,
+                le_250ms=existing.le_250ms + row.le_250ms,
+                le_500ms=existing.le_500ms + row.le_500ms,
+                le_1s=existing.le_1s + row.le_1s,
+                le_5s=existing.le_5s + row.le_5s,
+            )
+
+        # Enforce the cap by counting distinct minute buckets.
+        distinct_minutes = sorted({k[0] for k in self._pending})
+        overflow = len(distinct_minutes) - self._buffer_cap_minutes
+        if overflow > 0:
+            dropped_minutes = distinct_minutes[:overflow]
+            drop_set = set(dropped_minutes)
+            self._pending = {k: v for k, v in self._pending.items() if k[0] not in drop_set}
+            if not self._in_overflow_episode:
+                _log.warning(
+                    "metrics.buffer_overflow",
+                    dropped_minutes=len(dropped_minutes),
+                )
+                self._in_overflow_episode = True
 
     async def _tick(self) -> int:
-        """Snapshot the registry, compute deltas, upsert. Returns rows written."""
+        """Snapshot the registry, compute deltas, upsert (with backlog). Returns rows written."""
         bucket = _minute_bucket(self._now())
         counts, sums, bins = _snapshot_registry(self._registry)
         rows = _diff_to_rows(bucket, counts, sums, bins, self._previous)
-        if not rows:
+        # Merge the current tick's rows into the pending backlog FIRST so a
+        # retried upsert carries forward any previously dropped tick's data
+        # as the summed delta for the same minute key.
+        if rows:
+            self._buffer_rows(rows)
+        if not self._pending:
             self._previous = _Snapshot(counts=counts, sums=sums, bins=bins)
             return 0
 
+        pending_rows = list(self._pending.values())
         started = time.perf_counter_ns()
-        async with self._session_factory() as session:
-            written = await upsert_rows(session, rows)
+        try:
+            async with self._session_factory() as session:
+                written = await upsert_rows(session, pending_rows)
+        except Exception as exc:
+            # Keep the rows buffered; the next tick retries.
+            duration_ms = (time.perf_counter_ns() - started) // 1_000_000
+            _log.warning(
+                "metrics.flush_failed",
+                error_type=type(exc).__name__,
+                error_msg=str(exc),
+                pending_minutes=len({k[0] for k in self._pending}),
+                duration_ms=duration_ms,
+            )
+            # Still advance the snapshot cursor so we do not re observe the
+            # same cumulative values and double count once Postgres recovers.
+            self._previous = _Snapshot(counts=counts, sums=sums, bins=bins)
+            return 0
+
         duration_ms = (time.perf_counter_ns() - started) // 1_000_000
         _log.info(
             "metrics.flush_completed",
             rows_written=written,
             duration_ms=duration_ms,
         )
+        self._pending.clear()
+        self._in_overflow_episode = False
         self._previous = _Snapshot(counts=counts, sums=sums, bins=bins)
         return written
 
@@ -233,8 +306,9 @@ class MetricsFlusher:
             try:
                 await self._tick()
             except Exception as exc:
-                # M1 happy path: log and keep running. M3 adds the FIFO buffer
-                # and the `metrics.flush_failed` event.
+                # Defence in depth: `_tick` already swallows DB failures.
+                # Anything else landing here (snapshot bug, dataclass error)
+                # still must not kill the task.
                 _log.warning(
                     "metrics.flush_failed",
                     error_type=type(exc).__name__,
