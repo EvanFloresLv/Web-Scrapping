@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import {
   Area,
   AreaChart,
@@ -75,6 +75,8 @@ export const Route = createFileRoute('/_authed/metrics')({
 
 function MetricsPage() {
   const { workflow_id } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+  const clearWorkflowFilter = () => navigate({ search: {} })
 
   const query = useQuery<MetricQueryResponse, ApiError>({
     queryKey: queryKeys.metrics.query([...ALL_METRICS], { window: '1h' }),
@@ -98,7 +100,7 @@ function MetricsPage() {
         </p>
       </header>
 
-      <Toolbar workflowId={workflow_id} />
+      <Toolbar workflowId={workflow_id} onClearWorkflow={clearWorkflowFilter} />
 
       {query.isError ? (
         <div
@@ -181,10 +183,17 @@ function Panel({
   )
 }
 
-function Toolbar({ workflowId }: { workflowId: string | undefined }) {
-  // Toolbar is a thin wrapper for M2. The window selector is fixed to the
-  // last 60 minutes; the workflow input is a free text UUID (spec 0012 AC-9).
-  // M4 wires the clear filter + the deep link entry from the run detail page.
+function Toolbar({
+  workflowId,
+  onClearWorkflow,
+}: {
+  workflowId: string | undefined
+  onClearWorkflow: () => void
+}) {
+  // Toolbar is a thin wrapper. Window is fixed to the last 60 minutes for the
+  // MVP; the workflow input is a free text UUID (spec 0012 AC-9). The run
+  // detail page's "View metrics" link navigates here with `?workflow_id=...`.
+  const navigate = useNavigate({ from: Route.fullPath })
   return (
     <div className="flex flex-wrap items-end gap-4 rounded-md border bg-card/50 p-3">
       <div className="flex flex-col gap-1">
@@ -201,14 +210,26 @@ function Toolbar({ workflowId }: { workflowId: string | undefined }) {
           id="workflow-filter"
           placeholder="paste a workflow uuid"
           defaultValue={workflowId ?? ''}
+          onBlur={(e) => {
+            const next = e.currentTarget.value.trim()
+            navigate({ search: next ? { workflow_id: next } : {} })
+          }}
           className="h-9 w-80"
-          readOnly
         />
       </div>
       {workflowId ? (
-        <p className="text-xs text-muted-foreground">
-          Filter active: {workflowId.slice(0, 8)}… (clear via run detail page in M4)
-        </p>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            Filter: {workflowId.slice(0, 8)}…
+          </span>
+          <button
+            type="button"
+            onClick={onClearWorkflow}
+            className="text-xs text-muted-foreground hover:underline"
+          >
+            Clear filter
+          </button>
+        </div>
       ) : null}
     </div>
   )

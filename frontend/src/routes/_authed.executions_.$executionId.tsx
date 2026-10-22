@@ -186,6 +186,13 @@ function Header({ execution }: { execution: ExecutionBody }) {
         </p>
       </div>
       <div className="flex items-center gap-2">
+        <Link
+          to="/metrics"
+          search={{ workflow_id: execution.workflow_id }}
+          className="rounded-md border px-3 py-1.5 text-xs font-medium text-primary hover:bg-accent"
+        >
+          View metrics
+        </Link>
         <span className="text-xs text-muted-foreground">correlation</span>
         <code className="rounded-md border bg-muted px-2 py-1 font-mono text-xs">
           {execution.correlation_id}
