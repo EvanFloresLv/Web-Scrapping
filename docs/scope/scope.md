@@ -26,7 +26,7 @@ _Heads up: there is no root `AGENTS.md` yet. Run `/audit` as the first step so l
 | 10 | Workflow configuration screens | Slice 2 (Admin UI) | in-progress |
 | 11 | Execution browser | Slice 2 (Admin UI) | planned |
 | 12 | Structured logging & correlation | Slice 3 (Observability) | done |
-| 13 | Metrics & operational dashboard | Slice 3 (Observability) | planned |
+| 13 | Metrics & operational dashboard | Slice 3 (Observability) | in-progress |
 | 14 | Langfuse agent tracing scaffold | Slice 3 (Observability) | planned |
 | 15 | LLM provider abstraction & prompt versioning | Slice 4 (Agentic AI) | planned |
 | 16 | Agent-assisted workflow discovery | Slice 4 (Agentic AI) | planned |
@@ -223,10 +223,18 @@ JSON logs across the API, workers, and extractors with a correlation id propagat
 - [x] Test it: `/test structured logging & correlation`
 Spec [0011](../specs/0011-structured-logging-and-correlation/index.md)
 
-### 13. Metrics & operational dashboard · needs a decision
+### 13. Metrics & operational dashboard
 Expose core metrics (request rate, latency percentiles, error rate, extraction success rate, per-domain throttling) and render an operational view in the admin UI.
 **Done when:** metrics are collected via a documented endpoint, the dashboard shows p50/p95 latency and error rate over the last hour, and the panel is linkable from a run detail.
-- [ ] Design it (spec): `/architect metrics & operational dashboard`
+- [x] Design it (spec): `/architect metrics & operational dashboard`
+- [ ] Build it: `/develop metrics & operational dashboard`
+  - [ ] M1 HTTP latency end-to-end: settings + `metric_minute` migration + `prometheus-client` registry + `RequestLoggingMiddleware` instrumentation + flusher + lifespan wiring + `GET /api/v1/metrics/query` + `/metrics` SPA route with the Request-latency panel (satisfies AC-1 HTTP, AC-2 HTTP, AC-3, AC-4, AC-6, AC-7 partial, AC-10, AC-12)
+  - [ ] M2 Widen to extraction + execution: promote `app.core.observability.metrics` helpers to real `prometheus-client` instruments + add the remaining three Recharts panels + toolbar (satisfies AC-1 full, AC-2 full, AC-7 full)
+  - [ ] M3 Operational hardening: flusher failure safety + buffer cap + retention task + self-observability log events (extend spec 0011 catalogue) + dashboard empty state (satisfies AC-5, AC-8, AC-11)
+  - [ ] M4 Deep link: dashboard URL state (`?workflow_id=`) + run-detail `View metrics` link (satisfies AC-9)
+- [ ] Verify it: `/check verify metrics & operational dashboard`
+- [ ] Test it: `/test metrics & operational dashboard`
+Spec [0012](../specs/0012-metrics-and-operational-dashboard/index.md)
 
 ### 14. Langfuse agent tracing scaffold · needs a decision
 Wire a Langfuse (or equivalent) client behind an interface so later agent calls automatically record traces, prompt versions, token usage, and cost estimates.
