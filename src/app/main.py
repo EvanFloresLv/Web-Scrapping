@@ -6,10 +6,12 @@ Startup/shutdown: lifespan context handles the DB engine lifecycle.
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx
+import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request, Response, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -32,11 +34,14 @@ from app.core.startup_state import (
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Emit a structlog event per request with the headers redacted.
+    """Emit a `request.completed` structlog event per request (spec 0011 AC-8).
 
-    Spec 0008 AC-18: `x-api-key` and `authorization` are replaced with
-    `"<redacted>"` before serialisation so a captured admin API key cannot
-    land in logs. Lives in `app.core.logging.SENSITIVE_REQUEST_HEADERS`.
+    Headers are redacted via `SENSITIVE_REQUEST_HEADERS` at the edge (spec
+    0008 AC-18); the `redact_sensitive_keys` processor is defence in depth
+    (spec 0011 AC-6). The event carries `method`, `path`, `status`, and
+    `duration_ms`; no request or response body is ever logged (AC-7). The
+    `correlation_id` comes from the `CorrelationIdMiddleware`'s contextvar
+    binding; this handler never passes it as a kwarg.
     """
 
     def __init__(self, app: object) -> None:
@@ -45,12 +50,26 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         safe_headers = redact_headers(dict(request.headers))
+        start_ns = time.perf_counter_ns()
         response = await call_next(request)
+        duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
+
+        # Spec 0011 AC-3: bridge asgi-correlation-id into structlog
+        # contextvars so this event carries the id without a per call
+        # kwarg. `BaseHTTPMiddleware` runs `call_next` in a child task, so
+        # the asgi-correlation-id `ContextVar` set inside is not visible
+        # here; the middleware writes the id onto the response as
+        # `X-Request-ID`, which is the source of truth we can read.
+        structlog.contextvars.clear_contextvars()
+        cid = response.headers.get("x-request-id") or "-"
+        structlog.contextvars.bind_contextvars(correlation_id=cid)
+
         self._log.info(
-            "request",
+            "request.completed",
             method=request.method,
             path=request.url.path,
             status=response.status_code,
+            duration_ms=duration_ms,
             headers=safe_headers,
         )
         return response
@@ -85,7 +104,11 @@ class RequestBodySizeLimitMiddleware(BaseHTTPMiddleware):
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     log = get_logger("app.lifespan")
-    log.info("startup", app=settings.app_name, env=settings.environment)
+    log.info(
+        "app.startup_completed",
+        app=settings.app_name,
+        env=settings.environment,
+    )
 
     # Shared httpx.AsyncClient for extraction (spec 0005 AC-4). One client per
     # process; the fetcher reuses the connection pool for every fetch.
@@ -105,7 +128,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         await http_client.aclose()
         await dispose_engine()
-        log.info("shutdown")
+        log.info("app.shutdown_started")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

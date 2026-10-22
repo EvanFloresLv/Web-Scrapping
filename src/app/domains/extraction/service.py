@@ -4,13 +4,16 @@ Side effect free: no DB write, no file write, no process-wide state. Feature 7
 wraps this call with the persistence shell that writes `executions` and
 `execution_results` rows. Every terminal path returns an `ExtractionResult`.
 
-Observability (AC-15): emits `extraction.fetch_started`,
-`extraction.fetch_completed`, `extraction.parse_completed`,
-`extraction.item_extracted` (debug, per item), `extraction.completed`, and
-`extraction.failed`, each carrying `correlation_id`, `workflow_version_id`,
-`workflow_id`, `target_url`, and `duration_ms`/`items_count`/`error_code`
-when known. The metrics wrapper records one duration sample per phase and
-one counter bump per terminal state.
+Observability (spec 0011 canonical catalogue): emits
+`extraction.fetch_started`, `extraction.fetch_completed`,
+`extraction.parse_completed`, `extraction.item_extracted` (debug, per item),
+`extraction.extract_completed`, `extraction.validate_completed`, and
+`extraction.failed`. `correlation_id` is carried via structlog contextvars
+(bound by the HTTP middleware or `ExecutionService.execute`, spec 0011
+AC-3/AC-4); when the executor also binds `execution_id` that field flows
+through automatically too. Workflow identifiers are bound for the duration
+of `run(...)` so every nested event carries them without per call kwargs.
+Metrics stay unchanged.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import time
 from typing import Any
 from uuid import UUID
 
+import structlog
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.errors.execution_codes import (
@@ -75,20 +79,33 @@ class ExtractionService:
         `target_url` is the canonical URL resolved by the caller against
         `target_urls`; the service does not do the lookup itself (that
         belongs to the preview router + feature 7's executor).
+
+        Binds `workflow_id`, `workflow_version_id`, and `target_url` into
+        structlog contextvars for the duration of the run (spec 0011
+        catalogue) so every nested event carries them without per call
+        kwargs. `correlation_id` and (when running inside the executor)
+        `execution_id` are already bound by the caller.
         """
         workflow_id: UUID = workflow_version.workflow_id
         version_id: UUID = workflow_version.id
-        log_ctx: dict[str, Any] = {
-            "workflow_version_id": str(version_id),
-            "workflow_id": str(workflow_id),
-            "target_url": target_url,
-        }
+        with structlog.contextvars.bound_contextvars(
+            workflow_id=str(workflow_id),
+            workflow_version_id=str(version_id),
+            target_url=target_url,
+        ):
+            return await self._run_bound(workflow_version, target_url)
+
+    async def _run_bound(
+        self,
+        workflow_version: WorkflowVersion,
+        target_url: str,
+    ) -> ExtractionResult:
         total_start = time.perf_counter_ns()
 
         try:
             config = _coerce_config(workflow_version.config)
         except ExtractionError as exc:
-            return self._fail(exc, log_ctx, total_start)
+            return self._fail(exc, total_start)
 
         if config.pagination is not None:
             pagination_exc = ExtractionError(
@@ -96,55 +113,61 @@ class ExtractionService:
                 "pagination is configured but not supported by this extractor",
                 details=[{"reason": "pagination deferred to a future slice"}],
             )
-            return self._fail(pagination_exc, log_ctx, total_start)
+            return self._fail(pagination_exc, total_start)
 
-        _log.info("extraction.fetch_started", **log_ctx)
+        _log.info("extraction.fetch_started", url=target_url, method="GET")
         fetch_start = time.perf_counter_ns()
         try:
             fetched = await self._fetcher.fetch(target_url)
         except FetchError as fetch_exc:
             observe_duration("fetch", (time.perf_counter_ns() - fetch_start) / 1e9)
-            return self._fail(fetch_exc, log_ctx, total_start)
+            return self._fail(fetch_exc, total_start)
         fetch_ms = _elapsed_ms(fetch_start)
         observe_duration("fetch", fetch_ms / 1000)
         _log.info(
             "extraction.fetch_completed",
-            **log_ctx,
-            duration_ms=fetch_ms,
+            url=target_url,
             final_url=fetched.final_url,
+            duration_ms=fetch_ms,
         )
 
         parse_start = time.perf_counter_ns()
         document = parse_html(fetched.body, fetched.charset)
         parse_ms = _elapsed_ms(parse_start)
         observe_duration("parse", parse_ms / 1000)
-        _log.info("extraction.parse_completed", **log_ctx, duration_ms=parse_ms)
+        _log.info("extraction.parse_completed", duration_ms=parse_ms)
 
         try:
+            extract_start = time.perf_counter_ns()
             items = extract(document, config, final_url=fetched.final_url)
+            extract_ms = _elapsed_ms(extract_start)
             for index, item in enumerate(items):
                 _log.debug(
                     "extraction.item_extracted",
-                    **log_ctx,
                     item_index=index,
                     field_count=len(item),
                 )
+            _log.info(
+                "extraction.extract_completed",
+                duration_ms=extract_ms,
+                items_extracted=len(items),
+            )
 
             validate_start = time.perf_counter_ns()
             OutputSchemaValidator(config.output_schema).validate_all(items)
-            observe_duration("validate", (time.perf_counter_ns() - validate_start) / 1e9)
+            validate_ms = _elapsed_ms(validate_start)
+            observe_duration("validate", validate_ms / 1000)
+            _log.info(
+                "extraction.validate_completed",
+                duration_ms=validate_ms,
+                valid=True,
+            )
         except ExtractionError as extract_exc:
-            return self._fail(extract_exc, log_ctx, total_start)
+            return self._fail(extract_exc, total_start)
 
         duration_ms = _elapsed_ms(total_start)
         observe_duration("total", duration_ms / 1000)
         increment_items("completed")
-        _log.info(
-            "extraction.completed",
-            **log_ctx,
-            duration_ms=duration_ms,
-            items_count=len(items),
-        )
 
         return ExtractionResult(
             status="completed",
@@ -156,7 +179,6 @@ class ExtractionService:
     def _fail(
         self,
         exc: FetchError | ExtractionError,
-        log_ctx: dict[str, Any],
         total_start: int,
     ) -> ExtractionResult:
         duration_ms = _elapsed_ms(total_start)
@@ -164,10 +186,10 @@ class ExtractionService:
         increment_items("failed")
         _log.info(
             "extraction.failed",
-            **log_ctx,
             duration_ms=duration_ms,
             error_code=str(exc.code),
-            error_message=exc.message,
+            error_type=type(exc).__name__,
+            error_msg=exc.message,
         )
         return ExtractionResult(
             status="failed",

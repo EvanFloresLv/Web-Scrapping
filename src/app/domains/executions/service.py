@@ -24,8 +24,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.extraction import ExtractionPort
@@ -86,9 +87,36 @@ class ExecutionService:
         workflow_id: UUID,
         target_url_id: UUID,
         version_id: UUID | None,
+        correlation_id: str | None = None,
+    ) -> Execution:
+        """Run the resolved workflow version against the resolved target (AC-1 - AC-6).
+
+        Spec 0011 AC-4: wraps the body in `structlog.contextvars` so every
+        event emitted here (and any nested `extraction.*` events) carries
+        `correlation_id` + `execution_id` without per call kwargs. HTTP
+        callers always supply a `correlation_id` (the middleware mints one
+        if the client omits `X-Request-ID`). A programmatic caller that
+        passes none (future worker surface) gets a fresh UUID4.
+        """
+        bound_correlation_id = correlation_id or str(uuid4())
+        with structlog.contextvars.bound_contextvars(
+            correlation_id=bound_correlation_id,
+        ):
+            return await self._execute_bound(
+                workflow_id=workflow_id,
+                target_url_id=target_url_id,
+                version_id=version_id,
+                correlation_id=bound_correlation_id,
+            )
+
+    async def _execute_bound(
+        self,
+        *,
+        workflow_id: UUID,
+        target_url_id: UUID,
+        version_id: UUID | None,
         correlation_id: str,
     ) -> Execution:
-        """Run the resolved workflow version against the resolved target (AC-1 - AC-6)."""
         workflow = await self._workflows.get_live_workflow(workflow_id)
         if workflow is None:
             raise WorkflowNotFoundError(f"workflow {workflow_id} not found")
@@ -108,74 +136,73 @@ class ExecutionService:
         await self._executions.add(execution)
         await self._session.commit()
 
-        _log.info(
-            "execution.started",
-            correlation_id=correlation_id,
-            execution_id=str(execution.id),
-            workflow_id=str(workflow.id),
-            workflow_version_id=str(version.id),
-            target_url_id=str(target.id),
-        )
-
-        result = await self._extraction.run(version, target.url)
-
-        finished_at = _utcnow()
-        execution.status = result.status
-        execution.finished_at = finished_at
-        execution.duration_ms = int((finished_at - started_at).total_seconds() * 1000)
-        execution.items_extracted = result.items_count
-        execution.error_code = result.error_code
-        execution.error_message = result.error_message
-
-        execution_id = execution.id
-        try:
-            await self._executions.finalise(execution)
-            if result.status == "completed" and result.items:
-                rows = [
-                    ExecutionResult(
-                        execution_id=execution_id,
-                        item_index=index,
-                        payload=item,
-                    )
-                    for index, item in enumerate(result.items)
-                ]
-                await self._results.add_many(rows)
-            await self._session.commit()
-        except Exception as exc:
-            await self._session.rollback()
-            _log.error(
-                "execution.terminal_persist_failed",
-                correlation_id=correlation_id,
-                execution_id=str(execution_id),
+        with structlog.contextvars.bound_contextvars(execution_id=str(execution.id)):
+            _log.info(
+                "execution.started",
                 workflow_id=str(workflow.id),
                 workflow_version_id=str(version.id),
-                error=str(exc),
+                target_url_id=str(target.id),
             )
-            raise TerminalPersistFailedError(
-                f"failed to persist terminal state for execution {execution_id}"
-            ) from exc
 
-        duration_s = (execution.duration_ms or 0) / 1000
-        observe_execution_duration(result.status, duration_s)
-        increment_executions(result.status)
+            result = await self._extraction.run(version, target.url)
 
-        log_payload: dict[str, Any] = {
-            "correlation_id": correlation_id,
-            "execution_id": str(execution.id),
-            "workflow_id": str(workflow.id),
-            "workflow_version_id": str(version.id),
-            "target_url_id": str(target.id),
-            "duration_ms": execution.duration_ms,
-            "items_extracted": execution.items_extracted,
-        }
-        if result.status == "completed":
-            _log.info("execution.completed", **log_payload)
-        else:
-            log_payload["error_code"] = result.error_code
-            log_payload["error_details"] = result.error_details
-            _log.info("execution.failed", **log_payload)
+            finished_at = _utcnow()
+            execution.status = result.status
+            execution.finished_at = finished_at
+            execution.duration_ms = int((finished_at - started_at).total_seconds() * 1000)
+            execution.items_extracted = result.items_count
+            execution.error_code = result.error_code
+            execution.error_message = result.error_message
 
-        return execution
+            execution_id = execution.id
+            try:
+                await self._executions.finalise(execution)
+                if result.status == "completed" and result.items:
+                    rows = [
+                        ExecutionResult(
+                            execution_id=execution_id,
+                            item_index=index,
+                            payload=item,
+                        )
+                        for index, item in enumerate(result.items)
+                    ]
+                    await self._results.add_many(rows)
+                await self._session.commit()
+            except Exception as exc:
+                await self._session.rollback()
+                _log.error(
+                    "execution.terminal_persist_failed",
+                    workflow_id=str(workflow.id),
+                    workflow_version_id=str(version.id),
+                    error_type=type(exc).__name__,
+                    error_msg=str(exc),
+                )
+                raise TerminalPersistFailedError(
+                    f"failed to persist terminal state for execution {execution_id}"
+                ) from exc
+
+            duration_s = (execution.duration_ms or 0) / 1000
+            observe_execution_duration(result.status, duration_s)
+            increment_executions(result.status)
+
+            log_payload: dict[str, Any] = {
+                "workflow_id": str(workflow.id),
+                "workflow_version_id": str(version.id),
+                "target_url_id": str(target.id),
+                "duration_ms": execution.duration_ms,
+                "items_extracted": execution.items_extracted,
+            }
+            if result.status == "completed":
+                _log.info("execution.completed", **log_payload)
+            else:
+                log_payload["error_code"] = result.error_code
+                log_payload["error_type"] = (
+                    result.error_details[0].get("type") if result.error_details else None
+                )
+                log_payload["error_msg"] = result.error_message
+                _log.info("execution.failed", **log_payload)
+
+            return execution
 
     async def get(
         self,

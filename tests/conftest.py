@@ -13,7 +13,8 @@ Two layers:
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 # Set BEFORE any `app.*` import so `Settings()` without an explicit key reads
 # a valid value from the environment (spec 0008 requires one at startup).
@@ -21,6 +22,7 @@ os.environ.setdefault("ADMIN_API_KEY", "test-admin-api-key-0123456789")
 
 import pytest
 import pytest_asyncio
+import structlog
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -96,6 +98,42 @@ def _override_get_session_factory() -> _StubSessionFactory:
 
 
 TEST_ADMIN_API_KEY = "test-admin-api-key-0123456789"
+
+
+@pytest.fixture
+def caplog_structlog() -> Iterator[list[dict[str, Any]]]:
+    """Spec 0011 AC-11: capture emitted structlog events as plain dicts.
+
+    Keeps `merge_contextvars` in front of the capture sink so contextvar
+    bound fields (`correlation_id`, `execution_id`, ...) land on captured
+    events too, which the stock `structlog.testing.capture_logs()` drops.
+    Redaction assertions still need a dedicated rendered sink (see
+    `tests/test_logging_contract.py`), because the processor chain after
+    the capture point is bypassed by design.
+    """
+    entries: list[dict[str, Any]] = []
+
+    def _capture(_logger: Any, name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+        # Mirror structlog's own `capture_logs` convention: expose the
+        # call method (`info`, `debug`, ...) as `log_level` so tests can
+        # filter by severity even though the usual `add_log_level`
+        # processor is bypassed by this fixture.
+        event_dict.setdefault("log_level", name)
+        entries.append(dict(event_dict))
+        raise structlog.DropEvent
+
+    old_config = structlog.get_config()
+    structlog.configure(
+        processors=[structlog.contextvars.merge_contextvars, _capture],
+        wrapper_class=structlog.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=False,
+    )
+    try:
+        yield entries
+    finally:
+        structlog.configure(**old_config)
 
 
 @pytest.fixture

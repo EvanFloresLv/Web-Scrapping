@@ -5,11 +5,17 @@ Per spec 0001: pydantic-settings is the single source of truth; validates on sta
 
 from __future__ import annotations
 
+import json
+import logging
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(
+    {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
+)
 
 
 class Settings(BaseSettings):
@@ -27,6 +33,15 @@ class Settings(BaseSettings):
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO")
     log_json: bool = Field(default=False, description="JSON logs in deployed envs; pretty in dev.")
+    log_levels: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Per logger stdlib level overrides as a JSON object, e.g. "
+            '`{"app.extraction":"DEBUG","sqlalchemy.engine":"WARNING"}`. '
+            "Validated at startup; unknown level names or malformed JSON fail fast "
+            "(spec 0011 AC-5)."
+        ),
+    )
 
     # Database (async DSN; set via DATABASE_URL in .env)
     database_url: str = Field(
@@ -79,6 +94,42 @@ class Settings(BaseSettings):
         default="frontend/dist",
         description="Filesystem path to the built SPA. Used only when `serve_admin_ui` is true.",
     )
+
+    @field_validator("log_levels", mode="before")
+    @classmethod
+    def _parse_log_levels(cls, value: Any) -> dict[str, str]:
+        """Accept either a dict (already parsed) or a JSON string from env."""
+        if value in (None, "", {}):
+            return {}
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"LOG_LEVELS must be a JSON object; got invalid JSON ({exc.msg})."
+                ) from exc
+        else:
+            parsed = value
+        if not isinstance(parsed, dict):
+            raise ValueError("LOG_LEVELS must be a JSON object mapping logger name to level.")
+        result: dict[str, str] = {}
+        for key, level in parsed.items():
+            if not isinstance(key, str) or not isinstance(level, str):
+                raise ValueError("LOG_LEVELS keys and values must be strings.")
+            normalised = level.upper()
+            if normalised not in _VALID_LOG_LEVEL_NAMES:
+                raise ValueError(
+                    f"LOG_LEVELS: unknown level {level!r} for logger {key!r}; "
+                    f"expected one of {sorted(_VALID_LOG_LEVEL_NAMES)}."
+                )
+            # Round trip through `getLevelName` to confirm stdlib accepts it.
+            numeric = logging.getLevelName(normalised)
+            if not isinstance(numeric, int):
+                raise ValueError(
+                    f"LOG_LEVELS: level {level!r} for logger {key!r} is not a stdlib log level."
+                )
+            result[key] = normalised
+        return result
 
     @field_validator("admin_api_key")
     @classmethod
