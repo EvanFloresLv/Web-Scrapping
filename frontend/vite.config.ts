@@ -7,7 +7,7 @@ import { defineConfig } from 'vite'
 // Spec 0008 AC-1: proxy every reserved backend path to uvicorn on :8000.
 // The list mirrors AC-10's reserved SPA fallthrough prefixes, so a path that
 // works in dev also works in production.
-const BACKEND = 'http://localhost:8000'
+const BACKEND = 'http://127.0.0.1:8010'
 
 export default defineConfig({
   plugins: [

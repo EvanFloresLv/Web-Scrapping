@@ -107,6 +107,66 @@ function configToFormValues(config: WorkflowConfig): FormValues {
   }
 }
 
+/**
+ * Route a 422 (`WorkflowValidationError` or Pydantic body validation) to the
+ * editor's RHF form paths (spec 0009 AC-13). The backend's coherence errors
+ * emit `loc: ["output_schema", <name>]` or `["fields", <name>]` without a
+ * `body` prefix (see `src/app/domains/workflows/service.py`), so apiFetch's
+ * generic strip of `body/query/path` cannot resolve them to our form fields.
+ * Pydantic body errors arrive as `["body","config",...]`; we normalize both.
+ * Anything we cannot map falls back to a toast with the correlation id.
+ */
+export function mapValidationErrors(
+  error: ApiError,
+  setError: (name: string, err: { type: string; message: string }) => void,
+  fieldNames: string[],
+): void {
+  if (error.errors.length === 0) {
+    toast.error(
+      `${error.title}: ${error.detail ?? ''}${
+        error.correlationId ? `  (correlation ${error.correlationId})` : ''
+      }`,
+    )
+    return
+  }
+  const unmapped: string[] = []
+  for (const entry of error.errors) {
+    const loc = [...entry.loc]
+    if (loc[0] === 'body' || loc[0] === 'query' || loc[0] === 'path') loc.shift()
+    if (loc[0] === 'config') loc.shift()
+    const head = String(loc[0] ?? '')
+    const rest = loc.slice(1)
+    let target: string | null = null
+    if (head === 'container_selector') {
+      target = 'config.container_selector'
+    } else if (head === 'output_schema') {
+      target = 'config.output_schema_text'
+    } else if (head === 'pagination') {
+      target = 'config.pagination_text'
+    } else if (head === 'fields') {
+      const first = rest[0]
+      if (typeof first === 'number') {
+        const sub = rest[1] ? `.${String(rest[1])}` : '.name'
+        target = `config.fields.${first}${sub}`
+      } else if (typeof first === 'string') {
+        const idx = fieldNames.indexOf(first)
+        if (idx >= 0) target = `config.fields.${idx}.name`
+      }
+    }
+    if (target) {
+      setError(target, { type: entry.code, message: entry.message })
+    } else {
+      unmapped.push(entry.message)
+    }
+  }
+  if (unmapped.length > 0 || error.detail) {
+    const detail = error.detail ? `${error.title}: ${error.detail}` : error.title
+    const extra = unmapped.length > 0 ? ` (${unmapped.join('; ')})` : ''
+    const corr = error.correlationId ? `  (correlation ${error.correlationId})` : ''
+    toast.error(`${detail}${extra}${corr}`)
+  }
+}
+
 type SaveMode =
   | { kind: 'new'; workflowId: string }
   | { kind: 'edit'; workflowId: string; version: WorkflowVersionRead }
@@ -197,13 +257,14 @@ export function VersionEditor({ mode }: { mode: SaveMode }) {
     return gaps
   }, [outputSchemaText, watchedFields])
 
+  const currentFieldNames = watchedFields?.map((f) => f.name ?? '') ?? []
   const mutation = useMutation<WorkflowVersionRead, ApiError, WorkflowConfig>({
     mutationFn: async (config) => {
       if (mode.kind === 'new') {
         return apiFetch<WorkflowVersionRead>(`/api/v1/workflows/${mode.workflowId}/versions`, {
           method: 'POST',
           body: JSON.stringify({ config }),
-          rhfSetError: setError as never,
+          silent: true,
         })
       }
       return apiFetch<WorkflowVersionRead>(
@@ -211,7 +272,7 @@ export function VersionEditor({ mode }: { mode: SaveMode }) {
         {
           method: 'PATCH',
           body: JSON.stringify({ config }),
-          rhfSetError: setError as never,
+          silent: true,
         },
       )
     },
@@ -228,6 +289,9 @@ export function VersionEditor({ mode }: { mode: SaveMode }) {
       } else {
         reset(configToFormValues(created.config as WorkflowConfig))
       }
+    },
+    onError: (error) => {
+      mapValidationErrors(error, setError as never, currentFieldNames)
     },
   })
 
