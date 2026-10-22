@@ -189,14 +189,24 @@ UI to register websites and targets, create and edit workflow versions, and prev
   - [x] Versions tab + Publish/Archive/Delete lifecycle actions with every 409 handler (satisfies AC-9, AC-14, AC-15, AC-16)
   - [x] Version editor route (/versions/new + /versions/:vid) with structured fields form + CodeMirror panes + full-config Save (satisfies AC-10, AC-11, AC-12, AC-13)
   - [x] Preview panel, end-to-end Playwright smoke, Vitest coverage of 409/empty/dirty gates (satisfies AC-17, AC-18)
-- [ ] Verify it: `/check verify workflow configuration screens`
-- [ ] Test it: `/test workflow configuration screens`
+- [x] Verify it: `/check verify workflow configuration screens`
+- [x] Test it: `/test workflow configuration screens`
 Spec [0009](../specs/0009-workflow-configuration-screens/index.md) · code in `frontend/src/`
 
-### 11. Execution browser · needs a decision
-Browse executions with filters (workflow, status, time range), open a run to see its input, output, errors, and timings.
-**Done when:** the list paginates, filters work, and a run detail view renders JSON output, error reasons, and timing.
-- [ ] Design it (spec): `/architect execution browser`
+### 11. Execution browser
+Browse executions with filters (workflow, status, time range, target URL, website, correlation id), open a run to see its items, timings, error, and the config version that ran.
+**Done when:** the list paginates (cursor), filters work, and a run detail view renders the items table, raw JSON, error reasons, timing, and the config snapshot.
+- [x] Design it (spec): `/architect execution browser`
+- [ ] Build it: `/develop execution browser`
+  - [ ] Alembic migration (`ix_executions_correlation_id`) + list repository + cursor codec (satisfies AC-6, scaffolds AC-1, AC-2)
+  - [ ] `GET /api/v1/executions` list endpoint with filters, cursor pagination, `with_deleted` gate, website join (satisfies AC-1, AC-2, AC-3, AC-4, AC-5)
+  - [ ] `/executions` list screen scaffolding with URL-synced search params, columns, pagination controls (satisfies AC-7, AC-8 partial, AC-14 partial, AC-16)
+  - [ ] FilterBar (workflow / status / target / website / correlation id / time range) + parent workflow name resolution via `useQueries` (satisfies AC-8, AC-9)
+  - [ ] `/executions/:id` detail route with items table + raw JSON + Copy JSON + config snapshot pane (satisfies AC-11, AC-12, AC-13, AC-14)
+  - [ ] Auto refresh (conditional refetchInterval) + Problem Details propagation + vitest + Playwright smoke (satisfies AC-10, AC-15)
+- [ ] Verify it: `/check verify execution browser`
+- [ ] Test it: `/test execution browser`
+Spec [0010](../specs/0010-execution-browser/index.md) · code in `src/app/domains/executions/` + `src/app/api/v1/executions.py` + `frontend/src/`
 
 ## Slice 3: Observability
 
